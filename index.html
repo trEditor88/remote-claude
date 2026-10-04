@@ -201,6 +201,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .md blockquote{margin:0 0 .8em;padding:2px 0 2px 14px;border-left:3px solid var(--border);color:var(--muted)}
 .md hr{border:0;border-top:1px solid var(--hairline);margin:1.4em 0}
 .md a{color:var(--blue);text-underline-offset:2px}
+.md .md-img{margin:12px 0}
+.md .md-img img{display:block;max-width:100%;max-height:70vh;height:auto;border:1px solid var(--hairline);border-radius:var(--r-md);background:#fff}
+.md .md-img figcaption{margin-top:6px;font-size:13px;color:var(--muted)}
 .md strong{font-weight:700}
 .md .tbl{overflow-x:auto;margin:0 0 .8em}
 .md table{border-collapse:collapse;font-size:.9375rem;line-height:1.5}
@@ -568,6 +571,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     head.appendChild(b); pre.appendChild(el("code", null, text)); box.appendChild(head); box.appendChild(pre);
     return box;
   }
+  /* 그림: 한 줄 전체가 ![설명](주소) 일 때만. https 또는 data:image 만 허용(img 안의 SVG 는 스크립트가 돌지 않음) */
+  var IMG = /^\s*!\[([^\]\n]*)\]\((https:\/\/[^\s)]+|data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+\/=]+)\)\s*$/;
+  var isImg = function (s) { return IMG.test(s); };
+  function imgBlock(s) {
+    var m = IMG.exec(s), fig = el("figure", "md-img"), a = el("a"), im = el("img");
+    im.src = m[2]; im.alt = m[1] || "그림"; im.loading = "lazy"; im.decoding = "async";
+    a.href = m[2]; a.target = "_blank"; a.rel = "noopener noreferrer"; a.title = "크게 보기";
+    if (m[2].indexOf("data:") === 0) a.download = (m[1] || "그림").replace(/[\\\/:*?"<>|]/g, "").slice(0, 40) + "." + (/svg/.test(m[2].slice(0, 30)) ? "svg" : "png");
+    a.appendChild(im); fig.appendChild(a);
+    if (m[1]) fig.appendChild(el("figcaption", null, m[1]));
+    return fig;
+  }
   var isFence = function (s) { return /^\s*(```|~~~)/.test(s); };
   var isHead = function (s) { return /^\s{0,3}#{1,6}\s+\S/.test(s); };
   var isHr = function (s) { return /^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(s); };
@@ -626,13 +641,14 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       var s = L[i];
       if (!s.trim()) { i++; continue; }
       if (isFence(s)) { r = fence(L, i, 0); frag.appendChild(r.node); i = r.next; continue; }
+      if (isImg(s)) { frag.appendChild(imgBlock(s)); i++; continue; }
       if (isHead(s)) { var mh = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(s), h = el("h" + Math.min(6, mh[1].length + 2)); inline(h, mh[2]); frag.appendChild(h); i++; continue; }
       if (isHr(s)) { frag.appendChild(el("hr")); i++; continue; }
       if (isQuote(s)) { var q = []; while (i < L.length && isQuote(L[i])) q.push(L[i++].replace(/^\s{0,3}>\s?/, "")); var bq = el("blockquote"); bq.appendChild(md(q.join("\n"))); frag.appendChild(bq); continue; }
       if (isTable(L, i)) { r = table(L, i); frag.appendChild(r.node); i = r.next; continue; }
       if (isItem(s)) { r = list(L, i); frag.appendChild(r.node); i = r.next; continue; }
       var p = el("p"); inline(p, s.trim()); i++;   // 문단: 다음 블록이 나올 때까지 줄바꿈 유지
-      while (i < L.length && L[i].trim() && !isFence(L[i]) && !isHead(L[i]) && !isHr(L[i]) && !isQuote(L[i]) && !isItem(L[i]) && !isTable(L, i)) { p.appendChild(el("br")); inline(p, L[i].trim()); i++; }
+      while (i < L.length && L[i].trim() && !isFence(L[i]) && !isHead(L[i]) && !isHr(L[i]) && !isQuote(L[i]) && !isItem(L[i]) && !isTable(L, i) && !isImg(L[i])) { p.appendChild(el("br")); inline(p, L[i].trim()); i++; }
       frag.appendChild(p);
     }
     return frag;
@@ -855,7 +871,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (h.className === "comp-hint bad") return;   // 보내기 오류는 다시 입력할 때까지 둔다
     if (pcSeenAt >= 0 && !pcOnline()) { h.textContent = "PC가 응답하지 않아요. 보내 두면 PC가 켜질 때 실행돼요."; return; }
     if (MODEL_HINT[opts.model]) { h.textContent = MODEL_HINT[opts.model]; return; }
-    h.textContent = (t ? "이 대화에 이어서 보내요. Claude가 앞 내용을 기억해요." : pendingFolder ? "‘" + cut(pendingFolder, 16) + "’ 폴더에 새 대화로 보내요." : "새 대화로 보내요.") + (isTouch ? "" : " Ctrl+Enter로 보내기");
+    h.textContent = (t ? "이 대화에 이어서 보내요. Claude가 앞 내용을 기억해요." : pendingFolder ? "‘" + cut(pendingFolder, 16) + "’ 폴더에 새 대화로 보내요." : "새 대화로 보내요.") + (isTouch ? " Enter로 보내기" : " Enter로 보내기, Shift+Enter로 줄바꿈");
   }
   function render() {
     renderThreads(); renderPc(); renderHint();
@@ -1011,7 +1027,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   $("convMenu").addEventListener("click", function () { var t = curThread(); if (t) toggleMenu(this, function () { return threadMenu(t); }); });
   $("composer").addEventListener("submit", function (e) { e.preventDefault(); send(); });
   $("prompt").addEventListener("input", function () { grow(); updateSend(); if ($("sendHint").className === "comp-hint bad") { $("sendHint").className = "comp-hint"; renderHint(); } });
-  $("prompt").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+  // Enter = 보내기, Shift+Enter = 줄바꿈. 한글 조합 중(isComposing/229)의 Enter 는 글자 확정이므로 보내지 않음
+  $("prompt").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault(); send();
+  });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="mode"]'), function (r) {
     r.checked = r.value === opts.mode;
     r.addEventListener("change", function () { if (r.checked) { opts.mode = r.value; saveOpts(); } });
