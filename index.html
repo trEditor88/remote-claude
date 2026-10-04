@@ -1027,10 +1027,17 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   $("convMenu").addEventListener("click", function () { var t = curThread(); if (t) toggleMenu(this, function () { return threadMenu(t); }); });
   $("composer").addEventListener("submit", function (e) { e.preventDefault(); send(); });
   $("prompt").addEventListener("input", function () { grow(); updateSend(); if ($("sendHint").className === "comp-hint bad") { $("sendHint").className = "comp-hint"; renderHint(); } });
-  // Enter = 보내기, Shift+Enter = 줄바꿈. 한글 조합 중(isComposing/229)의 Enter 는 글자 확정이므로 보내지 않음
+  // Enter = 보내기, Shift+Enter = 줄바꿈.
+  // 한글 조합 중이거나 폰 키보드(keyCode 229)의 Enter 는 keydown 에서 못 잡으므로, 줄바꿈이 들어가기 직전(beforeinput)에 막고 보낸다
+  var shiftHeld = false;
   $("prompt").addEventListener("keydown", function (e) {
+    shiftHeld = e.shiftKey;
     if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
     e.preventDefault(); send();
+  });
+  $("prompt").addEventListener("keyup", function (e) { if (e.key === "Shift") shiftHeld = false; });
+  $("prompt").addEventListener("beforeinput", function (e) {
+    if ((e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") && !shiftHeld) { e.preventDefault(); setTimeout(send, 0); }
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="mode"]'), function (r) {
     r.checked = r.value === opts.mode;
