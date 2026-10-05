@@ -1076,7 +1076,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   $("loginForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var m = $("loginMsg"); m.hidden = true; $("loginBtn").disabled = true;
-    api({ action: "login", id: $("uid").value.trim(), pw: $("upw").value }).then(function (r) {
+    api({ action: "login", src: "rc", id: $("uid").value.trim(), pw: $("upw").value }).then(function (r) {
       $("loginBtn").disabled = false;
       if (!r.ok) { m.textContent = errMsg(r); m.hidden = false; return; }
       if (!r.user || r.user.role !== "admin") { m.textContent = ERR.forbidden; m.hidden = false; api({ action: "logout", token: r.token }); return; }
