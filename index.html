@@ -255,6 +255,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .count{font-size:.8125rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .count.bad{color:var(--red)}
 .send{min-height:40px;padding:8px 18px;flex-shrink:0}
+.attach{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border);border-radius:50%;background:var(--canvas);color:var(--muted);cursor:pointer;flex-shrink:0}
+.attach:hover{color:var(--ink)}
+.attach:focus-visible{outline:2px solid var(--blue-focus);outline-offset:1px}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 8px}
+.thumb{position:relative;width:64px;height:64px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--parchment)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb button{position:absolute;top:3px;right:3px;width:22px;height:22px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.comp-box.drag{border-color:var(--blue);border-style:dashed}
+.me-imgs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:min(88%,640px)}
+.me-imgs img{width:120px;height:120px;object-fit:cover;border-radius:12px;background:var(--parchment);cursor:zoom-in;border:1px solid var(--border)}
+.me-imgs img.big{width:auto;height:auto;max-width:100%;max-height:70vh;cursor:zoom-out}
+@media (pointer:coarse){.attach{width:40px;height:40px}}
 .comp-hint{font-size:.8125rem;color:var(--muted);margin:8px 6px 0}
 .comp-hint.bad{color:var(--red)}
 @media (pointer:coarse){.seg span{line-height:30px}.sel{min-height:40px}}
@@ -290,6 +302,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4.5"/><path d="M14.6 5.6a2.1 2.1 0 0 1 3 3L9 17.2l-4 1 1-4z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5-9 8.5"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 </svg>
 
@@ -367,9 +380,12 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       <form class="composer" id="composer">
         <div class="comp-box">
           <label class="sr-only" for="prompt">요청</label>
+          <div class="thumbs" id="thumbs" hidden></div>
           <textarea id="prompt" rows="1" maxlength="4000" placeholder="Claude에게 시킬 일을 적어 주세요"></textarea>
           <div class="comp-row">
             <div class="opts">
+              <button class="attach" id="attach" type="button" aria-label="사진 붙이기" title="사진 붙이기(붙여넣기·끌어놓기도 돼요)"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-image"/></svg></button>
+              <input type="file" id="fileIn" accept="image/*" multiple hidden>
               <div class="seg" role="radiogroup" aria-label="권한">
                 <label><input type="radio" name="mode" value="" checked><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-edit"/></svg>수정 허용</span></label>
                 <label><input type="radio" name="mode" value="plan"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-eye"/></svg>읽기만</span></label>
@@ -408,6 +424,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요." };
   var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "로그인을 너무 많이 틀려 잠시 잠겼습니다. 15분 뒤 다시 시도해 주세요.", forbidden: "관리자 계정만 쓸 수 있습니다.",
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
+    rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
     rc_not_active: "이미 끝난 요청이에요.", not_found: "대화를 찾지 못했어요. 이미 지워졌을 수 있어요.", bad_scope: "내용을 적어 주세요.",
     network: "인터넷 연결을 확인해 주세요.", timeout: "서버 응답이 너무 늦어요.", server: "서버 오류가 났어요. 잠시 뒤 다시 시도해 주세요." };
   var SUGGEST = [
@@ -424,6 +441,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var skew = 0, pcSeenAt = -1, seq = 0, pollTimer = 0, toastTimer = 0, prevAct = null, doneMark = false, justMoved = false, sending = false;
   var threadSig = "", threadsDirty = false, menuAnchor = null, folds = new Set();
   var opts = { model: "", mode: "" };
+  var MAX_IMG = 4, pics = [], imgCache = {};   // pics = 보낼 사진 [{ name, data }], imgCache = 받아 온 사진 { id: data URL }
   try { auth = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
   try { var saved = localStorage.getItem(TKEY); if (saved !== null) cur = saved; } catch (e) {}
   try { var o = JSON.parse(localStorage.getItem(OKEY) || "{}"); if (MODEL_TAG[o.model] && o.model !== "opus") opts.model = o.model; if (o.mode === "plan") opts.mode = "plan"; } catch (e) {}
@@ -663,7 +681,15 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   }
   function renderItem(x, isLast) {
     var li = el("li"), me = el("div", "me"), tags = [fmt(x.createdAt)];
-    me.appendChild(el("div", "bubble", x.prompt));
+    if (x.files && x.files.length) {
+      var box = el("div", "me-imgs");
+      x.files.forEach(function (id, i) {
+        var im = el("img"); im.alt = "보낸 사진 " + (i + 1); im.addEventListener("click", function () { im.classList.toggle("big"); });
+        loadImg(id, im); box.appendChild(im);
+      });
+      me.appendChild(box);
+    }
+    if (x.prompt !== "(사진)" || !(x.files && x.files.length)) me.appendChild(el("div", "bubble", x.prompt));
     if (x.mode === "plan") tags.push("읽기만");
     if (x.model) tags.push(MODEL_TAG[x.model] || x.model);
     me.appendChild(el("div", "me-meta", tags.join(" · ")));
@@ -975,23 +1001,62 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     dialog({ title: "실행 중인 작업을 멈출까요?", text: "이미 바뀐 파일은 되돌아가지 않아요.", ok: "멈추기", cancel: "계속 실행", danger: true }).then(function (v) { if (v) go(); });
   }
   function grow() { var ta = $("prompt"); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.4)) + "px"; }
+  function loadImg(id, im) {
+    if (imgCache[id]) { im.src = imgCache[id]; return; }
+    api({ action: "rcFile", id: id }, 40000).then(function (r) { if (r.ok && r.data) { imgCache[id] = r.data; im.src = r.data; } else im.alt = "사진을 불러오지 못했어요"; });
+  }
+  // 사진을 긴 변 1600px JPEG 로 줄인다(서버 한도·전송량)
+  function shrink(file) {
+    return new Promise(function (ok, no) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); ok(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); no(); };
+      img.src = url;
+    });
+  }
+  function addPics(list) {
+    var files = Array.prototype.filter.call(list || [], function (f) { return f && /^image\//.test(f.type); });
+    if (!files.length) return;
+    if (pics.length + files.length > MAX_IMG) toast(ERR.rc_files_many);
+    files.slice(0, MAX_IMG - pics.length).forEach(function (f) {
+      var p = { name: f.name || "사진", data: "" }; pics.push(p); renderPics();
+      shrink(f).then(function (d) { p.data = d; renderPics(); }, function () { pics.splice(pics.indexOf(p), 1); renderPics(); toast("이 사진은 열 수 없어요"); });
+    });
+  }
+  function renderPics() {
+    var t = $("thumbs"); t.textContent = ""; t.hidden = !pics.length;
+    pics.forEach(function (p, i) {
+      var d = el("div", "thumb"), im = el("img"), x = el("button");
+      im.alt = p.name; if (p.data) im.src = p.data;
+      x.type = "button"; x.setAttribute("aria-label", "사진 " + (i + 1) + " 빼기"); x.appendChild(ic("x", "ic-xs"));
+      x.addEventListener("click", function () { pics.splice(i, 1); renderPics(); $("prompt").focus(); });
+      d.appendChild(im); d.appendChild(x); t.appendChild(d);
+    });
+    updateSend();
+  }
   function updateSend() {
-    var n = $("prompt").value.length, c = $("count");
-    $("send").disabled = sending || !$("prompt").value.trim();
+    var n = $("prompt").value.length, c = $("count"), busy = pics.some(function (p) { return !p.data; });
+    $("send").disabled = sending || busy || !($("prompt").value.trim() || pics.length);
     c.hidden = n < 3000; c.textContent = n + " / 4000"; c.className = "count" + (n >= 3900 ? " bad" : "");
   }
   function sendHintError(msg) { var h = $("sendHint"); h.textContent = msg; h.className = "comp-hint bad"; }
   function send() {
-    var text = $("prompt").value.trim(); if (!text || sending) return;
+    var text = $("prompt").value.trim(); if ((!text && !pics.length) || sending || pics.some(function (p) { return !p.data; })) return;
     sending = true; updateSend(); $("sendHint").className = "comp-hint";
     var body = { action: "rcSubmit", prompt: text, model: opts.model, mode: opts.mode };
+    if (pics.length) body.images = pics.map(function (p) { return { name: p.name, data: p.data }; });
     if (cur) body.thread = cur; else if (pendingFolder) body.folder = pendingFolder;
-    api(body).then(function (r) {
+    api(body, pics.length ? 60000 : 0).then(function (r) {
       sending = false;
       if (!r.ok) { sendHintError(errMsg(r)); updateSend(); return; }
       if (r.thread && r.thread !== cur) { setCur(r.thread); threadSig = ""; }
       pendingFolder = "";
-      $("prompt").value = ""; grow(); updateSend(); justMoved = true;
+      $("prompt").value = ""; pics = []; renderPics(); grow(); updateSend(); justMoved = true;
       toast(pcOnline() ? "보냈어요. PC가 곧 시작해요" : "보냈어요. PC가 켜지면 실행돼요");
       load();
     });
@@ -1026,6 +1091,19 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   document.addEventListener("keydown", function (e) { if (e.key !== "Escape" || $("dlg").open) return; if (!$("menu").hidden) closeMenu(); else closeSide(); });
   $("convMenu").addEventListener("click", function () { var t = curThread(); if (t) toggleMenu(this, function () { return threadMenu(t); }); });
   $("composer").addEventListener("submit", function (e) { e.preventDefault(); send(); });
+  $("attach").addEventListener("click", function () { $("fileIn").click(); });
+  $("fileIn").addEventListener("change", function () { addPics(this.files); this.value = ""; });
+  $("prompt").addEventListener("paste", function (e) {
+    var fs = e.clipboardData && e.clipboardData.files;
+    if (fs && fs.length) { e.preventDefault(); addPics(fs); }
+  });
+  (function () {
+    var box = document.querySelector(".comp-box"), n = 0;
+    box.addEventListener("dragenter", function (e) { e.preventDefault(); n++; box.classList.add("drag"); });
+    box.addEventListener("dragleave", function () { if (--n <= 0) { n = 0; box.classList.remove("drag"); } });
+    box.addEventListener("dragover", function (e) { e.preventDefault(); });
+    box.addEventListener("drop", function (e) { e.preventDefault(); n = 0; box.classList.remove("drag"); addPics(e.dataTransfer && e.dataTransfer.files); });
+  })();
   $("prompt").addEventListener("input", function () { grow(); updateSend(); if ($("sendHint").className === "comp-hint bad") { $("sendHint").className = "comp-hint"; renderHint(); } });
   // Enter = 보내기, Shift+Enter = 줄바꿈.
   // 한글 조합 중이거나 폰 키보드(keyCode 229)의 Enter 는 keydown 에서 못 잡으므로, 줄바꿈이 들어가기 직전(beforeinput)에 막고 보낸다
