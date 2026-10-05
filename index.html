@@ -274,6 +274,47 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .comp-hint.bad{color:var(--red)}
 @media (pointer:coarse){.seg span{line-height:30px}.sel{min-height:40px}}
 
+/* 보안·설정 */
+.check{display:flex;align-items:center;gap:10px;font-size:.9375rem;margin:0 0 16px;cursor:pointer;min-height:44px}
+.check input{width:20px;height:20px;accent-color:var(--blue);flex-shrink:0}
+.check small{display:block;color:var(--muted);font-size:.8125rem}
+.code-input{font-size:1.75rem;letter-spacing:.45em;text-align:center;font-variant-numeric:tabular-nums;padding:12px 8px 12px calc(8px + .45em)}
+.step-title{font-size:1.125rem;font-weight:600;margin:0 0 6px}
+.step-text{color:var(--muted);font-size:.9375rem;margin:0 0 16px}
+.back{background:none;border:0;color:var(--blue);font-weight:600;padding:12px 0 0;min-height:44px}
+.banner-btn{display:flex;width:100%;align-items:center;gap:8px;text-align:left;border:0;cursor:pointer;font:inherit}
+.banner-btn .grow{flex:1}
+.tool{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:6px 11px 6px 9px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--canvas);color:var(--muted);font-size:.8125rem;font-weight:600;white-space:nowrap}
+.tool:hover{color:var(--ink)}
+.tool[aria-pressed="true"]{color:var(--red);border-color:var(--red)}
+.comp-hint.danger{color:var(--red);font-weight:600}
+.dlg.wide{width:min(94vw,560px)}
+.set-sec{border-top:1px solid var(--hairline);padding-top:14px;display:grid;gap:8px}
+.set-sec h3{font-size:1rem;font-weight:600;margin:0}
+.set-sec p{margin:0}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.switch{appearance:none;-webkit-appearance:none;width:46px;height:28px;border-radius:var(--r-pill);background:var(--border);position:relative;cursor:pointer;flex-shrink:0;transition:background-color .15s ease;margin:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s ease}
+.switch:checked{background:var(--blue)}
+.switch:checked::after{transform:translateX(18px)}
+.ev{list-style:none;margin:0;padding:0;display:grid;max-height:34vh;overflow:auto}
+.ev li{display:grid;gap:1px;padding:8px 2px;border-top:1px solid var(--hairline);font-size:.875rem}
+.ev li:first-child{border-top:0}
+.ev .k{font-weight:600}
+.ev .k.bad{color:var(--red)}
+.ev .m{color:var(--muted);font-size:.8125rem;overflow-wrap:anywhere}
+.ev .new .k::after{content:" · 새 기록";color:var(--blue);font-weight:600}
+.fields{display:grid;gap:12px}
+.fields label{display:grid;gap:6px;font-size:.875rem;font-weight:600}
+.danger-box{border:1px solid var(--red);border-radius:var(--r-md);padding:12px 14px;margin:0 0 12px}
+.danger-box h4{margin:0 0 6px;color:var(--red);font-size:.9375rem;font-weight:600;display:flex;gap:6px;align-items:center}
+@media (max-width:420px){.brand-text{display:none}}
+.danger-box ul{list-style-type:disc;margin:0;padding-left:1.2em;font-size:.8125rem;font-family:var(--mono);overflow-wrap:anywhere}
+.danger-box p{margin:8px 0 0;font-size:.875rem;color:var(--muted)}
+.danger-box .btn-sm{margin-top:10px;color:var(--red);border-color:var(--red)}
+.danger-box.ran{border-color:var(--border)}
+.danger-box.ran h4{color:var(--ink)}
+.steps li.blocked b{color:var(--red)}
 .toast{position:fixed;left:50%;top:calc(var(--top) + 12px);transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--canvas);padding:10px 18px;border-radius:var(--r-pill);font-size:.9375rem;font-weight:600;max-width:calc(100vw - 32px);text-align:center}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -307,16 +348,23 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4.5"/><path d="M14.6 5.6a2.1 2.1 0 0 1 3 3L9 17.2l-4 1 1-4z"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5-9 8.5"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5l7 2.6v5.4c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6.1z"/><path d="M12 8.5v4M12 15.8v.2"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3.5L5.5 13.5h5.5l-1 7 7.5-10h-5.5z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4.2L21 19.5H3z"/><path d="M12 10v4.2M12 16.9v.2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
 </svg>
 
 <header class="top">
   <div class="top-in">
     <button class="icon-btn only-mobile" id="openSide" type="button" aria-label="대화 목록 열기" aria-controls="side" aria-expanded="false" hidden><svg class="ic"><use href="#i-menu"/></svg></button>
     <span class="brand">
-      <svg class="mark" width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M19 22l12 10-12 10"/><path d="M35 43h11"/></svg>원격 Claude
+      <svg class="mark" width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M19 22l12 10-12 10"/><path d="M35 43h11"/></svg><span class="brand-text">원격 Claude</span>
     </span>
     <span class="pc" id="pc" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-monitor"/></svg><span id="pcText">PC 확인 중</span></span>
     <span class="grow"></span>
+    <button class="icon-btn" id="openSettings" type="button" aria-label="설정" title="설정" hidden><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></button>
     <span class="who" id="who" hidden><span class="who-name" id="whoName"></span><button class="link" id="logout" type="button" aria-label="나가기"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-logout"/></svg><span class="logout-label">나가기</span></button></span>
   </div>
 </header>
@@ -330,8 +378,17 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     <form id="loginForm" autocomplete="on">
       <div class="field"><label class="lbl" for="uid">아이디</label><input class="input" type="text" id="uid" autocomplete="username" autocapitalize="off" spellcheck="false" required></div>
       <div class="field"><label class="lbl" for="upw">비밀번호</label><input class="input" type="password" id="upw" autocomplete="current-password" required></div>
+      <label class="check"><input type="checkbox" id="keep" checked><span>로그인 유지<small>끄면 브라우저를 닫거나 12시간이 지나면 다시 로그인해요</small></span></label>
       <button class="btn btn-block" id="loginBtn" type="submit">들어가기</button>
       <p class="msg-bad" id="loginMsg" role="alert" hidden></p>
+    </form>
+    <form id="codeForm" autocomplete="off" hidden>
+      <p class="step-title"><svg class="ic" aria-hidden="true" style="vertical-align:-4px;color:var(--blue)"><use href="#i-lock"/></svg> 보안 코드 확인</p>
+      <p class="step-text">처음 쓰는 기기나 새로운 장소(IP)에서 로그인했어요. 미리 정해 둔 6자리 보안 코드를 넣어 주세요.</p>
+      <div class="field"><label class="lbl" for="code">보안 코드</label><input class="input code-input" type="text" id="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></div>
+      <button class="btn btn-block" id="codeBtn" type="submit">확인</button>
+      <p class="msg-bad" id="codeMsg" role="alert" hidden></p>
+      <button class="back" id="codeBack" type="button">처음부터 다시 로그인</button>
     </form>
     <p class="note">시험지 사이트의 관리자 계정으로 들어갑니다.</p>
   </section>
@@ -359,6 +416,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
           </div>
           <button class="tmore" id="convMenu" type="button" aria-label="이 대화 메뉴" aria-haspopup="menu" aria-expanded="false" hidden><svg class="ic"><use href="#i-dots"/></svg></button>
         </div>
+        <button class="banner bad banner-btn" id="needSetup" type="button" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-lock"/></svg><span class="grow">보안 코드를 아직 정하지 않았어요. 새 기기 확인이 꺼져 있어요.</span><b>정하기</b></button>
+        <button class="banner bad banner-btn" id="secAlert" type="button" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-alert"/></svg><span class="grow" id="secAlertText"></span><b>확인</b></button>
         <p class="banner bad" id="stale" role="alert" hidden>1분 넘게 기다리는 요청이 있어요. PC가 꺼져 있거나 <code>tools\remote_claude.py</code> 가 멈췄을 수 있어요.</p>
         <p class="banner bad" id="netErr" role="alert" hidden></p>
 
@@ -400,6 +459,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
                 <option value="sonnet">Sonnet · 빠르게</option>
                 <option value="haiku">Haiku · 가장 빠르게</option>
               </select>
+              <button class="tool" id="quick" type="button" aria-haspopup="menu" aria-expanded="false" title="빠른 작업"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-bolt"/></svg>빠른 작업</button>
+              <button class="tool" id="danger" type="button" aria-pressed="false" title="이번 요청에서 위험 명령(배포·삭제 등) 허용"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-shield"/></svg>위험 허용</button>
               <span class="count" id="count" hidden></span>
             </div>
             <button class="btn send" id="send" type="submit" disabled>보내기<svg class="ic ic-sm" aria-hidden="true"><use href="#i-send"/></svg></button>
@@ -417,7 +478,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 <script>
 (function () {
   "use strict";
-  var KEY = "remote-claude:auth", TKEY = "remote-claude:thread", OKEY = "remote-claude:opts", FKEY = "remote-claude:folds";
+  var KEY = "remote-claude:auth", TKEY = "remote-claude:thread", OKEY = "remote-claude:opts", FKEY = "remote-claude:folds", DKEY = "remote-claude:device";
   var API = "https://exam-api.dawn-sea-4052.workers.dev";
   try { API = localStorage.getItem("remote-claude:api") || API; } catch (e) {}   // 로컬 시험용(wrangler dev)
   var SVGNS = "http://www.w3.org/2000/svg";
@@ -425,10 +486,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var ACTIVE = { queued: 1, running: 1, canceling: 1 };
   var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku" };
   var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요." };
-  var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "로그인을 너무 많이 틀려 잠시 잠겼습니다. 15분 뒤 다시 시도해 주세요.", forbidden: "관리자 계정만 쓸 수 있습니다.",
+  var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "관리자 계정만 쓸 수 있습니다.",
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
     rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
-    rc_not_active: "이미 끝난 요청이에요.", not_found: "대화를 찾지 못했어요. 이미 지워졌을 수 있어요.", bad_scope: "내용을 적어 주세요.",
+    rc_not_active: "이미 끝난 요청이에요.", bad_code: "보안 코드가 맞지 않아요.", code_expired: "확인 시간이 지났어요. 처음부터 다시 로그인해 주세요.",
+    weak_code: "너무 쉬운 코드예요. 같은 숫자 반복이나 연속 숫자는 안 돼요.", bad_code_format: "6자리 숫자로 정해 주세요.", not_found: "대화를 찾지 못했어요. 이미 지워졌을 수 있어요.", bad_scope: "내용을 적어 주세요.",
     network: "인터넷 연결을 확인해 주세요.", timeout: "서버 응답이 너무 늦어요.", server: "서버 오류가 났어요. 잠시 뒤 다시 시도해 주세요." };
   var SUGGEST = [
     { i: "pulse", t: "사이트 상태 점검", p: "시험지·자리 뽑기 사이트와 서버 상태를 점검해 줘(.\\check-project.ps1 -Online). 문제가 있으면 원인과 고칠 방법을 알려 줘." },
@@ -445,7 +507,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var threadSig = "", threadsDirty = false, menuAnchor = null, folds = new Set();
   var opts = { model: "", mode: "" };
   var MAX_IMG = 4, pics = [], imgCache = {};   // pics = 보낼 사진 [{ name, data }], imgCache = 받아 온 사진 { id: data URL }
-  try { auth = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+  try { auth = JSON.parse(localStorage.getItem(KEY) || sessionStorage.getItem(KEY) || "null"); } catch (e) {}   // 로그인 유지 = localStorage, 안 함 = sessionStorage(브라우저 닫으면 사라짐)
+  var allowNext = false, challenge = "", dangerSeen = null;
   try { var saved = localStorage.getItem(TKEY); if (saved !== null) cur = saved; } catch (e) {}
   try { var o = JSON.parse(localStorage.getItem(OKEY) || "{}"); if (MODEL_TAG[o.model] && o.model !== "opus") opts.model = o.model; if (o.mode === "plan") opts.mode = "plan"; } catch (e) {}
   try { JSON.parse(localStorage.getItem(FKEY) || "[]").forEach(function (n) { folds.add(String(n)); }); } catch (e) {}
@@ -529,7 +592,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function dialog(o) {
     return new Promise(function (resolve) {
       var d = $("dlg"), f = el("form"), done = false, inp = null;
-      d.textContent = "";
+      d.textContent = ""; d.className = "dlg";
       function finish(v) { if (done) return; done = true; if (d.open) d.close(); resolve(v); }
       var h = el("h2", null, o.title); h.id = "dlgTitle"; f.appendChild(h);
       if (o.text) f.appendChild(el("p", null, o.text));
@@ -675,10 +738,163 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     return frag;
   }
 
+  /* ── 위험 명령: 막은 줄 모으기·허용 켜기(경고 확인)·새로 막히면 알림 ── */
+  function dangerLines(x) { return x.danger ? String(x.danger).split("\n").filter(Boolean) : String(x.progress || "").split("\n").filter(function (s) { return /^(막음|허용함) · /.test(s); }); }
+  function setAllow(on) { allowNext = on; $("danger").setAttribute("aria-pressed", String(on)); renderHint(); }
+  function askAllow(then) {
+    if (allowNext) { if (then) then(); return; }
+    dialog({ title: "위험 명령을 허용할까요?", text: "이번 요청 하나에서 배포·푸시, 원격 DB 쓰기, 폴더 통째 삭제, 시스템 설정 바꾸기 같은 명령도 실행돼요. 되돌리기 어려운 일이 생길 수 있어요. 보내고 나면 자동으로 다시 꺼져요.", ok: "허용", danger: true })
+      .then(function (v) { if (v) { setAllow(true); if (then) then(); } });
+  }
+  function watchDanger() {
+    var first = dangerSeen === null; if (first) dangerSeen = {};
+    items.forEach(function (x) {
+      var n = dangerLines(x).filter(function (s) { return /^막음 · /.test(s); }).length;
+      if (n > (dangerSeen[x.id] || 0) && !first) toast("위험한 명령을 막았어요. 요청 아래 경고를 확인하세요");
+      dangerSeen[x.id] = Math.max(n, dangerSeen[x.id] || 0);
+    });
+  }
+
+  /* ── 빠른 작업: 한 번 눌러 새 대화로 실행(배포는 경고 확인 뒤) ── */
+  var QUICK = [
+    { i: "pulse", t: "상태 점검", p: ".\\check-project.ps1 -Online 을 실행하고 결과를 짧은 표로 요약해 줘. 문제가 있으면 원인과 고칠 방법도 알려 줘." },
+    { i: "check", t: "서버 테스트", p: "python smoke-test.py exam 과 python smoke-test.py seat 를 실행하고 결과를 요약해 줘. 실패가 있으면 원인만 찾아 줘(고치지는 말고)." },
+    { i: "doc", t: "원격 Claude 기록 확인", p: "tools/remote_claude.log 의 최근 60줄을 읽고 오류나 이상한 점을 요약해 줘.", mode: "plan" },
+    "-",
+    { i: "send", t: "시험지 사이트 배포", p: "/deploy 절차대로 시험지 사이트(exam)를 배포하고 라이브 반영까지 확인해 줘.", allow: true },
+    { i: "send", t: "자리 뽑기 배포", p: "/deploy 절차대로 자리 뽑기 사이트(seat)를 배포하고 라이브 반영까지 확인해 줘.", allow: true }
+  ];
+  function runQuick(q) {
+    function go() {
+      api({ action: "rcSubmit", prompt: q.p, model: opts.model, mode: q.mode || "", allow: !!q.allow }).then(function (r) {
+        if (!r.ok) { toast(errMsg(r)); return; }
+        api({ action: "rcThread", thread: r.thread, title: "⚡ " + q.t });
+        pendingFolder = ""; setCur(r.thread); threadSig = ""; justMoved = true; closeSide();
+        toast("‘" + q.t + "’ 을(를) 보냈어요"); load();
+      });
+    }
+    if (!q.allow) { go(); return; }
+    dialog({ title: q.t + "을(를) 실행할까요?", text: "배포처럼 되돌리기 어려운 작업이라 위험 명령을 허용하고 보내요. 실행 중에도 중지할 수 있어요.", ok: "실행", danger: true }).then(function (v) { if (v) go(); });
+  }
+  function quickMenu() { return QUICK.map(function (q) { return q === "-" ? q : { icon: q.i, label: q.t, danger: !!q.allow, run: function () { runQuick(q); } }; }); }
+
+  /* ── 로그인: 비밀번호 → (새 기기·IP 면) 보안 코드 ── */
+  function deviceId() {
+    var d = ""; try { d = localStorage.getItem(DKEY) || ""; } catch (e) {}
+    if (!/^[a-f0-9]{32}$/.test(d)) { var a = new Uint8Array(16); crypto.getRandomValues(a); d = Array.prototype.map.call(a, function (b) { return b.toString(16).padStart(2, "0"); }).join(""); try { localStorage.setItem(DKEY, d); } catch (e) {} }
+    return d;
+  }
+  function saveAuth() { try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); (auth.keep ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(auth)); } catch (e) {} }
+  function loginStep(code) { $("loginForm").hidden = !!code; $("codeForm").hidden = !code; $("loginMsg").hidden = true; $("codeMsg").hidden = true; if (code) { $("code").value = ""; $("code").focus(); } }
+  function finishLogin(r) {
+    auth = { token: r.token, user: r.user, keep: !!r.keep }; saveAuth();
+    $("upw").value = ""; challenge = ""; loginStep(false); show(true);
+    if (r.needSetup) setTimeout(function () { setupCode(false, true); }, 300);
+  }
+  function uaName(ua) {
+    ua = String(ua || "");
+    var b = /SamsungBrowser/.test(ua) ? "삼성 인터넷" : /Edg\//.test(ua) ? "Edge" : /Whale/.test(ua) ? "웨일" : /Chrome\//.test(ua) ? "Chrome" : /Firefox/.test(ua) ? "Firefox" : /Safari/.test(ua) ? "Safari" : "";
+    var o = /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "Mac" : "";
+    return [o, b].filter(Boolean).join(" · ") || "알 수 없는 기기";
+  }
+
+  /* ── 설정: 보안 코드·로그인 유지·믿는 기기·보안 기록 ── */
+  var EV = { login: "로그인", login_nocode: "로그인 (보안 코드 없음)", login_new_device: "새 기기 로그인 (보안 코드 확인)", login_fail: "로그인 실패", locked: "너무 많이 틀려 잠김",
+    new_device: "새 기기·장소에서 로그인 시도", code_fail: "보안 코드 틀림", code_set: "보안 코드 정함", code_changed: "보안 코드 바꿈", code_change_fail: "보안 코드 바꾸기 실패",
+    trust_reset: "믿는 기기 모두 해제", allow_danger: "위험 명령 허용하고 보냄", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
+  var EV_BAD = { login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
+  function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
+    var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {};
+    d.textContent = ""; d.className = "dlg";
+    var h = el("h2", null, o.title); h.id = "dlgTitle"; f.appendChild(h);
+    if (o.text) f.appendChild(el("p", null, o.text));
+    o.fields.forEach(function (fd) {
+      var lab = el("label"), inp = el("input", "input" + (fd.numeric ? " code-input" : ""));
+      inp.type = fd.type || "text"; inp.required = true; inp.autocomplete = fd.auto || "off";
+      if (fd.numeric) { inp.inputMode = "numeric"; inp.maxLength = 6; inp.pattern = "[0-9]{6}"; }
+      lab.appendChild(document.createTextNode(fd.label)); lab.appendChild(inp); box.appendChild(lab); ins[fd.id] = inp;
+    });
+    f.appendChild(box); msg.hidden = true; msg.setAttribute("role", "alert"); f.appendChild(msg);
+    var btns = el("div", "dlg-btns"), no = el("button", "btn btn-ghost", "취소"), yes = el("button", "btn", o.ok || "저장");
+    no.type = "button"; no.onclick = function () { d.close(); }; yes.type = "submit"; btns.appendChild(no); btns.appendChild(yes); f.appendChild(btns);
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var v = {}; Object.keys(ins).forEach(function (k) { v[k] = ins[k].value.trim(); });
+      yes.disabled = true;
+      o.submit(v).then(function (err) { yes.disabled = false; if (err) { msg.textContent = err; msg.hidden = false; } else d.close(); });
+    });
+    d.appendChild(f); d.showModal(); ins[o.fields[0].id].focus();
+  }
+  function setupCode(isSet, first) {
+    var fields = [{ id: "pw", label: "비밀번호", type: "password", auto: "current-password" }];
+    if (isSet) fields.push({ id: "cur", label: "지금 보안 코드", numeric: true });
+    fields.push({ id: "code", label: "새 보안 코드 (6자리 숫자)", numeric: true }, { id: "code2", label: "새 보안 코드 한 번 더", numeric: true });
+    formDialog({ title: isSet ? "보안 코드 바꾸기" : "보안 코드 정하기", ok: isSet ? "바꾸기" : "정하기", fields: fields,
+      text: first ? "처음 쓰는 기기나 새로운 장소(IP)에서 로그인할 때 묻는 6자리 숫자예요. 지금 정해 두세요. 이 기기는 바로 믿는 기기가 돼요." : "처음 쓰는 기기나 새로운 장소(IP)에서 로그인할 때 묻는 6자리 숫자예요.",
+      submit: function (v) {
+        if (!/^\d{6}$/.test(v.code)) return Promise.resolve(ERR.bad_code_format);
+        if (v.code !== v.code2) return Promise.resolve("새 보안 코드 두 칸이 서로 달라요.");
+        return api({ action: "rcCodeSet", pw: v.pw, current: v.cur || "", code: v.code, device: deviceId(), ua: navigator.userAgent }).then(function (r) {
+          if (!r.ok) return r.error === "bad_login" ? "비밀번호가 맞지 않아요." : r.error === "bad_code" ? "지금 보안 코드가 맞지 않아요." : errMsg(r);
+          toast(isSet ? "보안 코드를 바꿨어요" : "보안 코드를 정했어요"); $("needSetup").hidden = true; return null;
+        });
+      } });
+  }
+  function openSettings() {
+    closeMenu(true); closeSide();
+    api({ action: "rcSecurity" }).then(function (r) {
+      if (!r.ok) { toast(errMsg(r)); return; }
+      $("secAlert").hidden = true;
+      var d = $("dlg"), f = el("form");
+      d.textContent = ""; d.className = "dlg wide";
+      var h = el("h2", null, "설정"); h.id = "dlgTitle"; f.appendChild(h);
+      function sec(title) { var x = el("section", "set-sec"); x.appendChild(el("h3", null, title)); f.appendChild(x); return x; }
+      var s1 = sec("보안 코드"), r1 = el("div", "set-row"), b1 = el("button", "btn-sm");
+      r1.appendChild(el("p", null, r.codeSet ? "정해 둠 · " + fmtFull(r.codeAt) + " (새 기기·장소에서 로그인할 때 물어요)" : "아직 안 정했어요. 새 기기 확인이 꺼져 있어요."));
+      b1.type = "button"; b1.appendChild(ic("lock")); b1.appendChild(document.createTextNode(r.codeSet ? "바꾸기" : "정하기")); b1.onclick = function () { setupCode(r.codeSet); };
+      r1.appendChild(b1); s1.appendChild(r1);
+      var s2 = sec("로그인 유지"), r2 = el("label", "set-row"), sw = el("input", "switch");
+      sw.type = "checkbox"; sw.setAttribute("role", "switch"); sw.checked = r.keep;
+      r2.appendChild(el("span", null, r.keep ? "켜짐 · 이 기기에서 " + fmtFull(r.expAt) + "까지 유지" : "꺼짐 · 브라우저를 닫거나 12시간이 지나면 다시 로그인")); r2.appendChild(sw); s2.appendChild(r2);
+      sw.onchange = function () {
+        var on = sw.checked; sw.disabled = true;
+        api({ action: "rcKeep", keep: on }).then(function (k) {
+          sw.disabled = false;
+          if (!k.ok) { sw.checked = !on; toast(errMsg(k)); return; }
+          auth.keep = on; saveAuth(); try { localStorage.setItem(OKEY + ":keep", on ? "1" : "0"); } catch (e) {}
+          r2.firstChild.textContent = on ? "켜짐 · 이 기기에서 30일 동안 유지" : "꺼짐 · 브라우저를 닫거나 12시간이 지나면 다시 로그인";
+          toast(on ? "로그인을 유지해요" : "로그인을 유지하지 않아요");
+        });
+      };
+      var s3 = sec("믿는 기기"), r3 = el("div", "set-row"), b3 = el("button", "btn-sm");
+      r3.appendChild(el("p", null, "보안 코드로 확인한 기기 " + r.devices + "대 · 지금 로그인 " + r.sessions + "곳"));
+      b3.type = "button"; b3.style.color = "var(--red)"; b3.appendChild(ic("trash")); b3.appendChild(document.createTextNode("모두 해제"));
+      b3.onclick = function () {
+        dialog({ title: "믿는 기기를 모두 해제할까요?", text: "이 기기를 뺀 다른 기기는 모두 로그아웃되고, 다음 로그인부터 모든 기기에서 보안 코드를 다시 물어요.", ok: "모두 해제", danger: true }).then(function (v) {
+          if (!v) return;
+          api({ action: "rcTrustReset", device: deviceId(), ua: navigator.userAgent }).then(function (t) { toast(t.ok ? "다른 기기 " + t.loggedOut + "곳을 로그아웃했어요" : errMsg(t)); });
+        });
+      };
+      r3.appendChild(b3); s3.appendChild(r3);
+      var s4 = sec("보안 기록 (최근 40개)"), ul = el("ul", "ev");
+      if (!r.events.length) ul.appendChild(el("li", null, "아직 기록이 없어요."));
+      r.events.forEach(function (e) {
+        var li = el("li", e.unseen ? "new" : null);
+        li.appendChild(el("span", "k" + (EV_BAD[e.kind] ? " bad" : ""), EV[e.kind] || e.kind));
+        li.appendChild(el("span", "m", [fmtFull(e.at), e.ip, e.ua ? uaName(e.ua) : "", e.device ? "기기 " + e.device : "", e.detail].filter(Boolean).join(" · ")));
+        ul.appendChild(li);
+      });
+      s4.appendChild(ul);
+      var btns = el("div", "dlg-btns"), close = el("button", "btn", "닫기");
+      close.type = "button"; close.onclick = function () { d.close(); }; btns.appendChild(close); f.appendChild(btns);
+      d.appendChild(f); d.showModal(); close.focus();
+    });
+  }
+
   /* ── 요청 하나 그리기 ── */
   function curThread() { for (var i = 0; i < threads.length; i++) if (threads[i].thread === cur) return threads[i]; return null; }
   function stepEl(s, now) {
-    var li = el("li", now ? "now" : null), k = s.indexOf(" · ");
+    var li = el("li", (now ? "now " : "") + (/^(막음|허용함) · /.test(s) ? "blocked" : "")), k = s.indexOf(" · ");
     if (k > 0) { li.appendChild(el("b", null, s.slice(0, k))); li.appendChild(document.createTextNode(" " + s.slice(k + 3))); } else li.textContent = s;
     return li;
   }
@@ -695,6 +911,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (x.prompt !== "(사진)" || !(x.files && x.files.length)) me.appendChild(el("div", "bubble", x.prompt));
     if (x.mode === "plan") tags.push("읽기만");
     if (x.model) tags.push(MODEL_TAG[x.model] || x.model);
+    if (x.allow) tags.push("⚠ 위험 명령 허용");
     me.appendChild(el("div", "me-meta", tags.join(" · ")));
     li.appendChild(me);
 
@@ -713,7 +930,21 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (!ACTIVE[x.status] && out) act("copy", "복사", function () { copy(out); });
     ai.appendChild(head);
 
-    var steps = String(x.progress || "").split("\n").filter(Boolean);
+    var steps = String(x.progress || "").split("\n").filter(Boolean), dl = dangerLines(x);
+    if (dl.length) {
+      var blocked = dl.filter(function (s) { return /^막음 · /.test(s); }), dbox = el("div", "danger-box" + (blocked.length ? "" : " ran")), h4 = el("h4"), ul = el("ul");
+      h4.appendChild(ic(blocked.length ? "alert" : "shield", "ic-sm")); h4.appendChild(document.createTextNode(blocked.length ? "위험한 명령을 막았어요" : "허용해서 실행한 위험 명령"));
+      dbox.appendChild(h4);
+      dl.forEach(function (s) { ul.appendChild(el("li", null, s.replace(/^(막음|허용함) · /, ""))); });
+      dbox.appendChild(ul);
+      if (blocked.length) {
+        dbox.appendChild(el("p", null, "원격 요청에서는 배포·삭제 같은 위험한 작업을 막아 두었어요. 꼭 필요하면 위험 명령을 허용하고 이 대화에 다시 보내세요."));
+        var again = el("button", "btn-sm"); again.type = "button"; again.appendChild(ic("shield")); again.appendChild(document.createTextNode("허용하고 다시 보내기"));
+        again.onclick = function () { askAllow(function () { var ta = $("prompt"); ta.value = x.prompt === "(사진)" ? "" : x.prompt; grow(); updateSend(); ta.focus(); }); };
+        if (!ACTIVE[x.status]) dbox.appendChild(again);
+      }
+      ai.appendChild(dbox);
+    }
     if (x.status === "queued") ai.appendChild(el("p", "wait", pcOnline() ? "PC가 곧 받아서 시작해요." : "PC가 응답하지 않아요. PC가 켜지면 순서대로 실행돼요."));
     if (x.status === "canceling") ai.appendChild(el("p", "wait", "Claude를 멈추는 중이에요…"));
     if (x.status === "running") {
@@ -898,6 +1129,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function renderHint() {
     var h = $("sendHint"), t = curThread();
     if (h.className === "comp-hint bad") return;   // 보내기 오류는 다시 입력할 때까지 둔다
+    h.className = "comp-hint";
+    if (allowNext) { h.textContent = "⚠ 이번 요청은 배포·삭제 같은 위험 명령도 실행돼요. 보내고 나면 다시 꺼져요."; h.className = "comp-hint danger"; return; }
     if (pcSeenAt >= 0 && !pcOnline()) { h.textContent = "PC가 응답하지 않아요. 보내 두면 PC가 켜질 때 실행돼요."; return; }
     if (MODEL_HINT[opts.model]) { h.textContent = MODEL_HINT[opts.model]; return; }
     h.textContent = (t ? "이 대화에 이어서 보내요. Claude가 앞 내용을 기억해요." : pendingFolder ? "‘" + cut(pendingFolder, 16) + "’ 폴더에 새 대화로 보내요." : "새 대화로 보내요.") + (isTouch ? " Enter로 보내기" : " Enter로 보내기, Shift+Enter로 줄바꿈");
@@ -972,6 +1205,10 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       cache = next;
       if (missing) { cacheThread = null; return load(); }
       $("stale").hidden = !r.stale;
+      $("needSetup").hidden = !r.needSetup;
+      $("secAlert").hidden = !r.alerts; $("secAlertText").textContent = "보안 알림 " + r.alerts + "건이 있어요 (로그인 실패·새 기기·막은 명령 등)";
+      if (typeof r.keep === "boolean" && auth.keep !== r.keep) { auth.keep = r.keep; saveAuth(); }
+      watchDanger();
       detectDone();
       var stick = justMoved || nearBottom();
       render();
@@ -1051,14 +1288,14 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function send() {
     var text = $("prompt").value.trim(); if ((!text && !pics.length) || sending || pics.some(function (p) { return !p.data; })) return;
     sending = true; updateSend(); $("sendHint").className = "comp-hint";
-    var body = { action: "rcSubmit", prompt: text, model: opts.model, mode: opts.mode };
+    var body = { action: "rcSubmit", prompt: text, model: opts.model, mode: opts.mode, allow: allowNext };
     if (pics.length) body.images = pics.map(function (p) { return { name: p.name, data: p.data }; });
     if (cur) body.thread = cur; else if (pendingFolder) body.folder = pendingFolder;
     api(body, pics.length ? 60000 : 0).then(function (r) {
       sending = false;
       if (!r.ok) { sendHintError(errMsg(r)); updateSend(); return; }
       if (r.thread && r.thread !== cur) { setCur(r.thread); threadSig = ""; }
-      pendingFolder = "";
+      pendingFolder = ""; setAllow(false);
       $("prompt").value = ""; pics = []; renderPics(); grow(); updateSend(); justMoved = true;
       toast(pcOnline() ? "보냈어요. PC가 곧 시작해요" : "보냈어요. PC가 켜지면 실행돼요");
       load();
@@ -1067,26 +1304,44 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function openSide() { document.body.classList.add("side-open"); $("scrim").hidden = false; $("openSide").setAttribute("aria-expanded", "true"); $("newConv").focus(); }
   function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
   function show(loggedIn) {
-    $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn;
+    $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn;
     if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; load(); }
-    else { clearTimeout(pollTimer); closeMenu(true); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
+    else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
   }
-  function logout() { auth = null; try { localStorage.removeItem(KEY); } catch (e) {} show(false); }
+  function logout() { auth = null; try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {} loginStep(false); show(false); }
 
   $("loginForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var m = $("loginMsg"); m.hidden = true; $("loginBtn").disabled = true;
-    api({ action: "login", src: "rc", id: $("uid").value.trim(), pw: $("upw").value }).then(function (r) {
+    api({ action: "rcLogin", id: $("uid").value.trim(), pw: $("upw").value, keep: $("keep").checked, device: deviceId(), ua: navigator.userAgent }).then(function (r) {
       $("loginBtn").disabled = false;
+      if (r.error === "need_code") { challenge = r.challenge; loginStep(true); return; }
       if (!r.ok) { m.textContent = errMsg(r); m.hidden = false; return; }
-      if (!r.user || r.user.role !== "admin") { m.textContent = ERR.forbidden; m.hidden = false; api({ action: "logout", token: r.token }); return; }
-      auth = { token: r.token, user: r.user };
-      try { localStorage.setItem(KEY, JSON.stringify(auth)); } catch (e2) {}
-      $("upw").value = "";
-      show(true);
+      finishLogin(r);
     });
   });
-  $("logout").addEventListener("click", function () { api({ action: "logout" }); logout(); });
+  $("codeForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var m = $("codeMsg"), c = $("code").value.trim(); m.hidden = true;
+    if (!/^\d{6}$/.test(c)) { m.textContent = "6자리 숫자를 넣어 주세요."; m.hidden = false; return; }
+    $("codeBtn").disabled = true;
+    api({ action: "rcVerify", challenge: challenge, code: c, device: deviceId(), ua: navigator.userAgent }).then(function (r) {
+      $("codeBtn").disabled = false;
+      if (r.ok) { finishLogin(r); return; }
+      if (r.error === "code_expired" || r.error === "locked") { loginStep(false); $("loginMsg").textContent = errMsg(r); $("loginMsg").hidden = false; return; }
+      m.textContent = r.error === "bad_code" ? "보안 코드가 맞지 않아요. 남은 기회 " + r.left + "번" : errMsg(r); m.hidden = false; $("code").select();
+    });
+  });
+  $("code").addEventListener("input", function () { this.value = this.value.replace(/\D/g, "").slice(0, 6); });
+  $("codeBack").addEventListener("click", function () { challenge = ""; loginStep(false); $("upw").focus(); });
+  try { if (localStorage.getItem(OKEY + ":keep") === "0") $("keep").checked = false; } catch (e) {}
+  $("keep").addEventListener("change", function () { try { localStorage.setItem(OKEY + ":keep", this.checked ? "1" : "0"); } catch (e) {} });
+  $("openSettings").addEventListener("click", openSettings);
+  $("needSetup").addEventListener("click", function () { setupCode(false); });
+  $("secAlert").addEventListener("click", openSettings);
+  $("quick").addEventListener("click", function () { toggleMenu(this, quickMenu); });
+  $("danger").addEventListener("click", function () { if (allowNext) setAllow(false); else askAllow(); });
+  $("logout").addEventListener("click", function () { api({ action: "rcLogout" }); logout(); });
   $("newConv").addEventListener("click", function () { newConv(); });
   $("openSide").addEventListener("click", openSide);
   $("closeSide").addEventListener("click", closeSide);
