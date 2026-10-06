@@ -315,6 +315,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .danger-box.ran{border-color:var(--border)}
 .danger-box.ran h4{color:var(--ink)}
 .steps li.blocked b{color:var(--red)}
+.setup-steps{margin:0;padding-left:1.3em;display:grid;gap:8px;font-size:.9375rem}
+.setup-steps li::marker{color:var(--blue);font-weight:600}
+.cmd{display:grid;gap:6px}
+.cmd pre{margin:0;background:var(--parchment);border-radius:var(--r-md);padding:10px 12px;font-family:var(--mono);font-size:.75rem;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:30vh;overflow:auto}
+.cmd .btn-sm{justify-self:start}
+.warn-box{border:1px solid var(--red);border-radius:var(--r-md);padding:10px 12px;font-size:.875rem;color:var(--ink)}
+.users{list-style:none;margin:0;padding:0;display:grid;max-height:46vh;overflow:auto}
+.users li{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--hairline)}
+.users li:first-child{border-top:0}
+.users .who2{flex:1;min-width:0}
+.users .who2 b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.users .who2 span{font-size:.8125rem;color:var(--muted)}
 .toast{position:fixed;left:50%;top:calc(var(--top) + 12px);transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--canvas);padding:10px 18px;border-radius:var(--r-pill);font-size:.9375rem;font-weight:600;max-width:calc(100vw - 32px);text-align:center}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -390,7 +402,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       <p class="msg-bad" id="codeMsg" role="alert" hidden></p>
       <button class="back" id="codeBack" type="button">처음부터 다시 로그인</button>
     </form>
-    <p class="note">시험지 사이트의 관리자 계정으로 들어갑니다.</p>
+    <p class="note">시험지 사이트 계정으로 들어갑니다. 관리자가 원격 Claude 사용을 허락한 계정만 쓸 수 있어요.</p>
   </section>
 </main>
 
@@ -416,6 +428,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
           </div>
           <button class="tmore" id="convMenu" type="button" aria-label="이 대화 메뉴" aria-haspopup="menu" aria-expanded="false" hidden><svg class="ic"><use href="#i-dots"/></svg></button>
         </div>
+        <button class="banner banner-btn" id="noPc" type="button" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-monitor"/></svg><span class="grow">아직 이 계정에 연결한 PC가 없어요. 내 PC의 Claude를 연결해야 요청이 실행돼요.</span><b style="color:var(--blue)">연결하기</b></button>
         <button class="banner bad banner-btn" id="needSetup" type="button" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-lock"/></svg><span class="grow">보안 코드를 아직 정하지 않았어요. 새 기기 확인이 꺼져 있어요.</span><b>정하기</b></button>
         <button class="banner bad banner-btn" id="secAlert" type="button" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-alert"/></svg><span class="grow" id="secAlertText"></span><b>확인</b></button>
         <p class="banner bad" id="stale" role="alert" hidden>1분 넘게 기다리는 요청이 있어요. PC가 꺼져 있거나 <code>tools\remote_claude.py</code> 가 멈췄을 수 있어요.</p>
@@ -424,7 +437,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         <section class="empty" id="empty" hidden aria-labelledby="emptyTitle">
           <svg class="mark" width="48" height="48" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M19 22l12 10-12 10"/><path d="M35 43h11"/></svg>
           <h2 id="emptyTitle">무엇을 시킬까요?</h2>
-          <p class="lead">관리자 PC의 <b>D:\AI_HEO</b> 폴더에서 Claude Code가 일합니다. 아래에서 골라 고쳐 쓰거나 직접 적어 보내세요.</p>
+          <p class="lead" id="emptyLead">연결한 PC에서 Claude Code가 일합니다. 아래에서 골라 고쳐 쓰거나 직접 적어 보내세요.</p>
           <div class="chips" id="chips"></div>
           <h3 class="tips-title">알아 두면 좋아요</h3>
           <ul class="tips">
@@ -486,7 +499,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var ACTIVE = { queued: 1, running: 1, canceling: 1 };
   var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku" };
   var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요." };
-  var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "관리자 계정만 쓸 수 있습니다.",
+  var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "원격 Claude 사용을 허락받은 계정만 쓸 수 있어요. 관리자에게 요청하세요.",
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
     rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
     rc_not_active: "이미 끝난 요청이에요.", bad_code: "보안 코드가 맞지 않아요.", code_expired: "확인 시간이 지났어요. 처음부터 다시 로그인해 주세요.",
@@ -498,6 +511,13 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     { i: "clock", t: "오늘 바뀐 파일", p: "오늘 수정된 파일을 찾아서 무엇이 바뀌었는지 짧게 정리해 줘." },
     { i: "monitor", t: "PC 상태 확인", p: "이 PC의 디스크 남은 용량과 메모리 사용량, 켜진 지 얼마나 됐는지 알려 줘." }
   ];
+  var SUGGEST_ANY = [
+    { i: "monitor", t: "PC 상태 확인", p: "이 PC의 디스크 남은 용량과 메모리 사용량, 켜진 지 얼마나 됐는지 알려 줘." },
+    { i: "folder", t: "폴더 살펴보기", p: "지금 작업 폴더에 무엇이 있는지 살펴보고 구조를 짧게 설명해 줘." },
+    { i: "clock", t: "최근 바뀐 파일", p: "작업 폴더에서 최근 3일 동안 바뀐 파일을 찾아 목록으로 정리해 줘." },
+    { i: "doc", t: "문서 요약", p: "작업 폴더에서 가장 최근 문서(.md·.txt·.docx)를 찾아 핵심을 다섯 줄로 요약해 줘." }
+  ];
+  var pcInfo = null;
   var $ = function (id) { return document.getElementById(id); };
   var isTouch = !!(window.matchMedia && matchMedia("(pointer: coarse)").matches);
   var auth = null, threads = [], items = [], cache = {}, cacheThread = null, els = {}, expanded = {}, openLog = {};
@@ -801,8 +821,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 설정: 보안 코드·로그인 유지·믿는 기기·보안 기록 ── */
   var EV = { login: "로그인", login_nocode: "로그인 (보안 코드 없음)", login_new_device: "새 기기 로그인 (보안 코드 확인)", login_fail: "로그인 실패", locked: "너무 많이 틀려 잠김",
     new_device: "새 기기·장소에서 로그인 시도", code_fail: "보안 코드 틀림", code_set: "보안 코드 정함", code_changed: "보안 코드 바꿈", code_change_fail: "보안 코드 바꾸기 실패",
-    trust_reset: "믿는 기기 모두 해제", allow_danger: "위험 명령 허용하고 보냄", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
-  var EV_BAD = { login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
+    trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
+  var EV_BAD = { bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
   function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
     var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {};
     d.textContent = ""; d.className = "dlg";
@@ -840,6 +860,77 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         });
       } });
   }
+  /* ── 내 PC 연결: 연결 코드 만들기 → 그 PC 의 PowerShell 에 붙여 넣을 명령 ── */
+  var BRIDGE_URL = "https://treditor88.github.io/remote-claude/bridge/";
+  function pcText(pc) {
+    if (!pc || (!pc.hasBridge && !pc.legacy)) return "아직 연결한 PC가 없어요.";
+    if (!pc.seenAt) return "연결 코드를 만들었지만 아직 PC가 한 번도 연결되지 않았어요.";
+    return (pcOnline() ? "연결됨" : "꺼짐 · 마지막 " + ago(pc.seenAt)) + (pc.pc ? " · " + pc.pc : "") + (pc.dir ? " · " + pc.dir : "") + (pc.legacy ? " (관리자 PC 기본 다리)" : "");
+  }
+  function showBridgeKey(key) {
+    var d = $("dlg"), f = el("form");
+    d.textContent = ""; d.className = "dlg wide";
+    var h = el("h2", null, "내 PC 연결하기"); h.id = "dlgTitle"; f.appendChild(h);
+    f.appendChild(el("p", "warn-box", "이 연결 코드는 지금 한 번만 보여요. 비밀번호처럼 다루세요. 새로 만들면 예전 코드는 바로 못 써요."));
+    var ol = el("ol", "setup-steps");
+    ["연결할 PC에 Python 3와 Claude Code를 설치하고, 터미널에서 claude 를 한 번 실행해 로그인해 두세요.",
+     "그 PC에서 PowerShell을 열고 아래 명령을 붙여 넣으세요. 마지막의 작업 폴더(Claude가 일할 곳)는 바꿔도 돼요.",
+     "\"원격 Claude 다리 시작\"이 보이면 연결 끝이에요. 창을 닫으면 멈추니, 자동으로 켜려면 같은 폴더에서 python remote_claude.py --install 을 실행하세요."].forEach(function (t) { ol.appendChild(el("li", null, t)); });
+    f.appendChild(ol);
+    var cmd = "[Net.ServicePointManager]::SecurityProtocol='Tls12'; $d=\"$HOME\\remote-claude\"; New-Item -ItemType Directory -Force $d | Out-Null; Set-Location $d; " +
+      "iwr " + BRIDGE_URL + "remote_claude.py -OutFile remote_claude.py; iwr " + BRIDGE_URL + "rc_guard.py -OutFile rc_guard.py; " +
+      "python remote_claude.py --key " + key + " --dir \"$HOME\\Documents\"";
+    var box = el("div", "cmd"), pre = el("pre", null, cmd), cp = el("button", "btn-sm");
+    cp.type = "button"; cp.appendChild(ic("copy")); cp.appendChild(document.createTextNode("명령 복사")); cp.onclick = function () { copy(cmd); };
+    box.appendChild(pre); box.appendChild(cp); f.appendChild(box);
+    f.appendChild(el("p", null, "연결한 PC에서는 Claude가 묻지 않고 파일을 읽고 고치고 명령을 실행해요. 배포·삭제 같은 위험한 명령은 막아 두고, 사이트에서 '위험 허용'을 켠 요청만 실행해요."));
+    var btns = el("div", "dlg-btns"), close = el("button", "btn", "다 했어요");
+    close.type = "button"; close.onclick = function () { d.close(); load(); }; btns.appendChild(close); f.appendChild(btns);
+    d.appendChild(f); d.showModal(); cp.focus();
+  }
+  function newBridge(had) {
+    var go = function () { api({ action: "rcBridgeNew", device: deviceId(), ua: navigator.userAgent }).then(function (r) { if (!r.ok) { toast(errMsg(r)); return; } showBridgeKey(r.key); }); };
+    if (!had) { go(); return; }
+    dialog({ title: "연결 코드를 새로 만들까요?", text: "지금 연결된 PC는 끊기고, 새 코드로 다시 연결해야 해요.", ok: "새로 만들기", danger: true }).then(function (v) { if (v) go(); });
+  }
+  function delBridge() {
+    dialog({ title: "PC 연결을 끊을까요?", text: "이 계정의 연결 코드가 지워져 그 PC는 더 이상 요청을 받지 못해요. 다시 쓰려면 새 코드를 만들면 돼요.", ok: "연결 끊기", danger: true })
+      .then(function (v) { if (!v) return; api({ action: "rcBridgeDel", device: deviceId(), ua: navigator.userAgent }).then(function (r) { toast(r.ok ? "PC 연결을 끊었어요" : errMsg(r)); load(); }); });
+  }
+  function openUsers() {
+    api({ action: "rcUsers" }).then(function (r) {
+      if (!r.ok) { toast(errMsg(r)); return; }
+      var d = $("dlg"), f = el("form"), find = el("input", "input"), ul = el("ul", "users"), ROLE = { teacher: "선생님", student: "학생" };
+      d.textContent = ""; d.className = "dlg wide";
+      var h = el("h2", null, "원격 Claude 사용자 허용"); h.id = "dlgTitle"; f.appendChild(h);
+      f.appendChild(el("p", null, "켠 계정은 자기 PC의 Claude를 연결해 쓸 수 있어요. 요청·대화는 계정마다 따로 보이고, 관리자 PC로는 실행되지 않아요. 끄면 바로 로그아웃돼요."));
+      find.type = "search"; find.placeholder = "이름·아이디로 찾기"; find.setAttribute("aria-label", "사용자 찾기"); f.appendChild(find);
+      function draw() {
+        var q = find.value.trim().toLowerCase(); ul.textContent = "";
+        var list = r.users.filter(function (x) { return !q || (x.id + " " + x.name).toLowerCase().indexOf(q) >= 0; }).slice(0, 200);
+        if (!list.length) ul.appendChild(el("li", null, "맞는 계정이 없어요."));
+        list.forEach(function (x) {
+          var li = el("li"), who = el("div", "who2"), sw = el("input", "switch");
+          who.appendChild(el("b", null, x.name || x.id));
+          who.appendChild(el("span", null, [x.id, ROLE[x.role] || x.role, x.seenAt ? "PC " + ago(x.seenAt) + " 확인" : ""].filter(Boolean).join(" · ")));
+          sw.type = "checkbox"; sw.setAttribute("role", "switch"); sw.setAttribute("aria-label", (x.name || x.id) + " 허용"); sw.checked = x.allowed;
+          sw.onchange = function () {
+            var on = sw.checked; sw.disabled = true;
+            api({ action: "rcUserAllow", userId: x.id, allow: on, device: deviceId(), ua: navigator.userAgent }).then(function (a) {
+              sw.disabled = false;
+              if (!a.ok) { sw.checked = !on; toast(errMsg(a)); return; }
+              x.allowed = on; toast((x.name || x.id) + (on ? " 허용했어요" : " 허용을 껐어요"));
+            });
+          };
+          li.appendChild(who); li.appendChild(sw); ul.appendChild(li);
+        });
+      }
+      find.addEventListener("input", draw); draw(); f.appendChild(ul);
+      var btns = el("div", "dlg-btns"), close = el("button", "btn", "닫기");
+      close.type = "button"; close.onclick = function () { d.close(); }; btns.appendChild(close); f.appendChild(btns);
+      d.appendChild(f); d.showModal(); find.focus();
+    });
+  }
   function openSettings() {
     closeMenu(true); closeSide();
     api({ action: "rcSecurity" }).then(function (r) {
@@ -849,6 +940,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       d.textContent = ""; d.className = "dlg wide";
       var h = el("h2", null, "설정"); h.id = "dlgTitle"; f.appendChild(h);
       function sec(title) { var x = el("section", "set-sec"); x.appendChild(el("h3", null, title)); f.appendChild(x); return x; }
+      var s0 = sec("내 PC 연결"), r0 = el("div", "set-row"), b0 = el("div"), pcAct = el("button", "btn-sm");
+      r0.appendChild(el("p", null, pcText(r.pc)));
+      pcAct.type = "button"; pcAct.appendChild(ic("monitor")); pcAct.appendChild(document.createTextNode(r.pc && r.pc.hasBridge ? "새 코드" : "연결하기"));
+      pcAct.onclick = function () { newBridge(r.pc && r.pc.hasBridge); }; b0.appendChild(pcAct);
+      if (r.pc && r.pc.hasBridge) { var pcDel = el("button", "btn-sm"); pcDel.type = "button"; pcDel.style.cssText = "margin-left:6px;color:var(--red)"; pcDel.appendChild(ic("x")); pcDel.appendChild(document.createTextNode("끊기")); pcDel.onclick = delBridge; b0.appendChild(pcDel); }
+      r0.appendChild(b0); s0.appendChild(r0);
+      if (r.isAdmin) {
+        var su = sec("사용자 허용"), ru = el("div", "set-row"), bu = el("button", "btn-sm");
+        ru.appendChild(el("p", null, "원격 Claude를 쓸 수 있는 계정을 고르세요. 각자 자기 PC를 연결해서 써요."));
+        bu.type = "button"; bu.appendChild(ic("check")); bu.appendChild(document.createTextNode("고르기")); bu.onclick = openUsers;
+        ru.appendChild(bu); su.appendChild(ru);
+      }
       var s1 = sec("보안 코드"), r1 = el("div", "set-row"), b1 = el("button", "btn-sm");
       r1.appendChild(el("p", null, r.codeSet ? "정해 둠 · " + fmtFull(r.codeAt) + " (새 기기·장소에서 로그인할 때 물어요)" : "아직 안 정했어요. 새 기기 확인이 꺼져 있어요."));
       b1.type = "button"; b1.appendChild(ic("lock")); b1.appendChild(document.createTextNode(r.codeSet ? "바꾸기" : "정하기")); b1.onclick = function () { setupCode(r.codeSet); };
@@ -1206,6 +1309,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       if (missing) { cacheThread = null; return load(); }
       $("stale").hidden = !r.stale;
       $("needSetup").hidden = !r.needSetup;
+      pcInfo = r.pc || null;
+      $("noPc").hidden = !pcInfo || pcInfo.hasBridge || pcInfo.legacy;
+      $("emptyLead").textContent = (pcInfo && pcInfo.dir ? "연결한 PC" + (pcInfo.pc ? "(" + pcInfo.pc + ")" : "") + "의 " + pcInfo.dir + " 폴더에서" : "연결한 PC에서") + " Claude Code가 일합니다. 아래에서 골라 고쳐 쓰거나 직접 적어 보내세요.";
       $("secAlert").hidden = !r.alerts; $("secAlertText").textContent = "보안 알림 " + r.alerts + "건이 있어요 (로그인 실패·새 기기·막은 명령 등)";
       if (typeof r.keep === "boolean" && auth.keep !== r.keep) { auth.keep = r.keep; saveAuth(); }
       watchDanger();
@@ -1304,7 +1410,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function openSide() { document.body.classList.add("side-open"); $("scrim").hidden = false; $("openSide").setAttribute("aria-expanded", "true"); $("newConv").focus(); }
   function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
   function show(loggedIn) {
-    $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn;
+    $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn; $("quick").hidden = !(loggedIn && auth.user && auth.user.role === "admin"); if (loggedIn) renderChips();
     if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; load(); }
     else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
   }
@@ -1338,6 +1444,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   $("keep").addEventListener("change", function () { try { localStorage.setItem(OKEY + ":keep", this.checked ? "1" : "0"); } catch (e) {} });
   $("openSettings").addEventListener("click", openSettings);
   $("needSetup").addEventListener("click", function () { setupCode(false); });
+  $("noPc").addEventListener("click", function () { newBridge(false); });
   $("secAlert").addEventListener("click", openSettings);
   $("quick").addEventListener("click", function () { toggleMenu(this, quickMenu); });
   $("danger").addEventListener("click", function () { if (allowNext) setAllow(false); else askAllow(); });
@@ -1381,12 +1488,15 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   });
   $("model").value = opts.model;
   $("model").addEventListener("change", function () { opts.model = this.value; saveOpts(); renderHint(); });
-  SUGGEST.forEach(function (s) {
+  function renderChips() {
+    $("chips").textContent = "";
+    (auth && auth.user && auth.user.role === "admin" ? SUGGEST : SUGGEST_ANY).forEach(function (s) {
     var b = el("button", "chip"); b.type = "button";
     b.appendChild(ic(s.i)); b.appendChild(el("b", null, s.t)); b.appendChild(el("span", null, s.p));
     b.onclick = function () { var ta = $("prompt"); ta.value = s.p; grow(); updateSend(); ta.focus(); };
     $("chips").appendChild(b);
-  });
+    });
+  }
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) { schedule(); return; }
     if (doneMark) { doneMark = false; document.title = "원격 Claude"; }
@@ -1397,7 +1507,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     for (var i = 0; i < ts.length; i++) ts[i].textContent = clock((serverNow() - Number(ts[i].getAttribute("data-start"))) / 1000);
     if (auth) renderPc();
   }, 1000);
-  show(!!(auth && auth.token && auth.user && auth.user.role === "admin"));
+  show(!!(auth && auth.token && auth.user));   // 관리자가 허용한 계정도 씀(서버가 rcAuth 로 확인)
 })();
 </script>
 </body>
