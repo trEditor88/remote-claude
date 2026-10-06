@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>원격 Claude 사용 설명서</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/static/pretendard.css">
+<style>
+:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--red:#C0392B;--green:#15803D;
+  font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-size:1.0625rem;line-height:1.7;word-break:keep-all}
+a{color:var(--blue)} a:focus-visible{outline:2px solid var(--blue-focus);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:48px 20px 80px}
+h1{font-size:clamp(2rem,4vw,2.6rem);font-weight:600;letter-spacing:-0.02em;line-height:1.2;margin:0 0 12px}
+h2{font-size:1.5rem;font-weight:600;margin:56px 0 14px;padding-top:8px}
+h3{font-size:1.125rem;font-weight:600;margin:28px 0 8px}
+p{margin:0 0 12px} ol,ul{margin:0 0 14px;padding-left:22px} li{margin-bottom:6px}
+.lead{font-size:1.2rem;color:var(--muted)}
+.toc{background:var(--parchment);border-radius:18px;padding:20px 24px;margin:32px 0}
+.toc ol{margin:8px 0 0;columns:2;column-gap:28px} .toc a{text-decoration:none}
+.b{display:inline-block;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--parchment);font-size:0.9375rem;font-weight:600;white-space:nowrap}
+.note{border-left:3px solid var(--blue);background:var(--parchment);padding:12px 16px;border-radius:0 11px 11px 0;margin:14px 0;font-size:0.975rem}
+.warn{border-left-color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:0.95rem;margin:8px 0 16px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-size:0.85rem;font-weight:600}
+.tbl{overflow-x:auto}
+footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-size:0.875rem;color:var(--muted)}
+@media (max-width:640px){.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>원격 Claude 사용 설명서</h1>
+<p class="lead">휴대폰에서 집 PC 의 Claude Code 에게 일을 시키고, 진행 상황과 결과를 실시간으로 받아 보는 개인 전용 사이트입니다.</p>
+
+<div class="note">이 사이트는 <b>PC 주인 한 사람만</b> 씁니다. 다른 사람은 로그인할 수 없습니다.</div>
+
+<nav class="toc"><b>차례</b>
+<ol>
+<li><a href="#s1">로그인과 보안 코드</a></li>
+<li><a href="#s2">화면 알아보기</a></li>
+<li><a href="#s3">일 시키기</a></li>
+<li><a href="#s4">진행 보기·멈추기</a></li>
+<li><a href="#s5">대화 정리하기</a></li>
+<li><a href="#s6">보안 설정</a></li>
+<li><a href="#s7">홈 화면에 추가</a></li>
+<li><a href="#s8">이럴 땐 이렇게</a></li>
+</ol></nav>
+
+<h2 id="s1">1. 로그인과 보안 코드</h2>
+<ol>
+<li><a href="https://treditor88.github.io/remote-claude/">원격 Claude</a>를 열고 아이디·비밀번호를 넣은 뒤 <span class="b">들어가기</span>를 누릅니다.</li>
+<li>처음 로그인하면 <b>보안 코드 정하기</b> 창이 뜹니다. 6자리 숫자를 정하세요. 같은 숫자 반복(111111)이나 연속 숫자(123456)는 안 됩니다.</li>
+<li>다음부터 <b>새 기기나 새 장소</b>(다른 와이파이·통신망)에서 로그인하면 이 6자리 코드를 한 번 더 묻습니다.</li>
+</ol>
+<ul>
+<li><b>로그인 유지</b>는 기본으로 켜져 있습니다. 끄면 브라우저를 닫거나 12시간이 지나면 다시 로그인해야 합니다. 남의 기기에서는 꺼 두세요.</li>
+<li>너무 많이 틀리면 15~30분 동안 잠깁니다. 잠깐 기다렸다 다시 하세요.</li>
+</ul>
+
+<h2 id="s2">2. 화면 알아보기</h2>
+<div class="tbl"><table>
+<tr><th>위치</th><th>보이는 것</th><th>뜻</th></tr>
+<tr><td>맨 위</td><td>PC 연결됨 / PC 꺼짐 · N분 전</td><td>집 PC 가 일을 받을 수 있는지 알려 줍니다. 꺼져 있어도 요청은 쌓였다가 PC 가 켜지면 실행됩니다.</td></tr>
+<tr><td>맨 위 오른쪽</td><td>톱니(설정), 나가기</td><td>보안 설정과 로그아웃.</td></tr>
+<tr><td>왼쪽(휴대폰은 ☰)</td><td>새 대화, 대화 목록</td><td>고정한 대화 → 폴더 → 최근 대화 순서. 점은 실행 중·대기 중 표시입니다.</td></tr>
+<tr><td>가운데</td><td>대화 내용</td><td>새 대화에서는 "무엇을 시킬까요?"와 추천 카드 4개가 보입니다.</td></tr>
+</table></div>
+
+<h2 id="s3">3. 일 시키기</h2>
+<ol>
+<li>아래 입력창에 할 일을 적습니다(최대 4000자). 추천 카드를 눌러도 됩니다.</li>
+<li>필요하면 사진을 붙입니다. 사진 버튼, 붙여넣기, 끌어놓기 모두 되고 <b>한 번에 4장까지</b>입니다.</li>
+<li>권한을 고릅니다.
+  <ul>
+  <li><b>수정 허용</b> — 파일을 고치고 명령도 실행합니다.</li>
+  <li><b>읽기만</b> — 파일을 고치지 않고 살펴본 뒤 계획만 세웁니다. 처음 보는 일이면 이걸로 먼저 시켜 보세요.</li>
+  </ul></li>
+<li>모델을 고릅니다.
+  <div class="tbl"><table>
+  <tr><th>모델</th><th>언제</th></tr>
+  <tr><td>기본 · Opus</td><td>보통은 이걸로.</td></tr>
+  <tr><td>Fable · 최고 성능</td><td>아주 어려운 일. 사용량을 Opus 의 2.5배쯤 씁니다.</td></tr>
+  <tr><td>Sonnet · 빠르게</td><td>간단하고 빨리 끝낼 일.</td></tr>
+  <tr><td>Haiku · 가장 빠르게</td><td>아주 짧은 질문. 복잡한 일은 실수할 수 있습니다.</td></tr>
+  </table></div></li>
+<li><span class="b">보내기</span>(또는 Enter)를 누릅니다. PC 에서는 Shift+Enter 로 줄을 바꿉니다.</li>
+</ol>
+<h3>빠른 작업</h3>
+<p>자주 하는 일(상태 점검, 서버 테스트, 기록 확인, 사이트 배포)을 버튼 한 번으로 보냅니다. 배포는 실행 전에 한 번 더 묻습니다.</p>
+<h3>위험 허용</h3>
+<div class="note warn">안전을 위해 배포·푸시·데이터 삭제·폴더 통째 삭제·시스템 설정·비밀 값 읽기 같은 위험한 명령은 기본으로 <b>막혀</b> 있습니다. 꼭 필요할 때만 <span class="b">위험 허용</span>을 켜고 <span class="b">허용</span>을 누르세요. 그 요청 하나에만 적용되고, 보내고 나면 저절로 꺼집니다.</div>
+
+<h2 id="s4">4. 진행 보기·멈추기</h2>
+<div class="tbl"><table>
+<tr><th>상태</th><th>뜻</th><th>할 수 있는 것</th></tr>
+<tr><td>대기</td><td>PC 가 아직 받지 않음</td><td><span class="b">취소</span></td></tr>
+<tr><td>실행 중</td><td>작업 중. 경과 시간과 실시간 작업 기록(최근 8줄)이 보입니다.</td><td><span class="b">중지</span> → <span class="b">멈추기</span></td></tr>
+<tr><td>완료</td><td>끝남. 결과가 바로 아래에 보입니다.</td><td><span class="b">전체 보기</span> <span class="b">복사</span>, 접힌 <b>작업 기록</b></td></tr>
+<tr><td>오류 / 중지됨</td><td>실패했거나 멈춤</td><td><span class="b">다시 쓰기</span></td></tr>
+</table></div>
+<ul>
+<li>같은 대화에서 다시 보내면 Claude 가 앞 내용을 기억하고 이어서 합니다. 주제가 바뀌면 <span class="b">새 대화</span>를 쓰세요.</li>
+<li>위험한 명령이 막히면 "위험한 명령을 막았어요" 상자가 뜹니다. 정말 필요하면 <span class="b">허용하고 다시 보내기</span>를 누르세요.</li>
+<li>끝나면 "요청이 끝났어요" 알림이 뜨고 탭 제목 앞에 (완료)가 붙습니다. 다른 앱을 보고 있어도 됩니다.</li>
+</ul>
+
+<h2 id="s5">5. 대화 정리하기</h2>
+<p>대화 옆 <span class="b">⋯</span> 메뉴:</p>
+<ul>
+<li><b>이름 바꾸기</b> — 비워 두면 첫 요청이 제목이 됩니다.</li>
+<li><b>맨 위에 고정</b> / <b>고정 해제</b></li>
+<li><b>폴더로 이동</b> — 새 폴더 이름을 적고 <span class="b">만들어서 옮기기</span>. <b>폴더에서 빼기</b>로 다시 꺼냅니다.</li>
+<li><b>내보내기 (.md)</b> — 대화를 문서 파일로 저장합니다.</li>
+<li><b>삭제</b> — 되돌릴 수 없습니다.</li>
+</ul>
+<p>폴더 옆 <span class="b">⋯</span> 메뉴에는 <b>이 폴더에 새 대화</b>, <b>폴더 이름 바꾸기</b>, <b>폴더 풀기</b>가 있습니다. 목록에는 고정·폴더 대화와 최근 대화를 합쳐 100개까지 보입니다.</p>
+
+<h2 id="s6">6. 보안 설정 (톱니)</h2>
+<div class="tbl"><table>
+<tr><th>항목</th><th>하는 일</th></tr>
+<tr><td>보안 코드</td><td>6자리 코드를 정하거나 바꿉니다. 바꿀 때는 비밀번호와 지금 코드가 필요합니다.</td></tr>
+<tr><td>로그인 유지</td><td>이 기기에서 로그인을 오래 유지할지 정합니다.</td></tr>
+<tr><td>믿는 기기</td><td>보안 코드로 확인한 기기 수와 지금 로그인된 곳 수. <span class="b">모두 해제</span>를 누르면 이 기기를 뺀 모든 기기가 로그아웃되고, 다음에 다시 코드를 물어봅니다.</td></tr>
+<tr><td>보안 기록 (최근 40개)</td><td>로그인, 로그인 실패, 잠김, 새 기기 시도, 코드 틀림, 위험 명령 막음 등을 시각·IP·기기와 함께 보여 줍니다.</td></tr>
+</table></div>
+<div class="note warn"><b>모르는 기록이 보이면</b> 바로 <span class="b">모두 해제</span>를 누르고, 비밀번호와 보안 코드를 바꾸세요. 화면 위에 "보안 알림 N건" 띠가 뜨면 <span class="b">확인</span>을 눌러 살펴보세요.</div>
+
+<h2 id="s7">7. 홈 화면에 추가</h2>
+<p>앱처럼 아이콘으로 열 수 있습니다.</p>
+<ul>
+<li><b>아이폰(사파리)</b> — 아래 공유 버튼 → 홈 화면에 추가</li>
+<li><b>안드로이드(크롬)</b> — 오른쪽 위 ⋮ → 홈 화면에 추가(또는 앱 설치)</li>
+</ul>
+
+<h2 id="s8">8. 이럴 땐 이렇게</h2>
+<div class="tbl"><table>
+<tr><th>상황</th><th>해결</th></tr>
+<tr><td>계속 "대기"에서 안 넘어가요</td><td>맨 위가 PC 꺼짐이면 PC 를 켜세요. 켜지면 쌓인 요청부터 실행합니다. "1분 넘게 기다리는 요청" 띠가 계속 뜨면 PC 의 원격 Claude 다리가 꺼진 것입니다(5분 안에 저절로 다시 켜짐).</td></tr>
+<tr><td>오류로 끝났어요</td><td>작업 기록을 펼쳐 마지막 줄을 봅니다. <span class="b">다시 쓰기</span>로 고쳐 보내세요.</td></tr>
+<tr><td>너무 오래 걸려요</td><td><span class="b">중지</span> → <span class="b">멈추기</span>. 일을 작게 나눠 다시 시키세요.</td></tr>
+<tr><td>"보안 코드가 맞지 않아요"</td><td>남은 기회 안에 다시 넣으세요. 시간이 지나면 <span class="b">처음부터 다시 로그인</span>.</td></tr>
+<tr><td>"관리자 계정만 쓸 수 있습니다"</td><td>이 사이트는 PC 주인 계정으로만 들어갈 수 있습니다.</td></tr>
+<tr><td>휴대폰을 잃어버렸어요</td><td>다른 기기로 로그인 → 설정 → 믿는 기기 <span class="b">모두 해제</span> → 비밀번호와 보안 코드 변경.</td></tr>
+</table></div>
+
+<footer>원격 Claude · <a href="https://treditor88.github.io/remote-claude/">사이트 열기</a> · <a href="https://heoworks.pages.dev">HEO Works</a></footer>
+</div>
+</body>
+
+</html>
