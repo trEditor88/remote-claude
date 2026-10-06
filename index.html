@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>원격 Claude</title>
-<meta name="description" content="관리자 PC의 Claude Code에게 일을 시키고 결과를 받습니다.">
+<meta name="description" content="서버의 Claude Code에게 일을 시키고 결과를 받습니다.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -386,7 +386,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   <section class="login-card" aria-labelledby="loginTitle">
     <svg class="mark" width="56" height="56" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M19 22l12 10-12 10"/><path d="M35 43h11"/></svg>
     <h1 id="loginTitle">원격 Claude</h1>
-    <p class="lead">휴대폰에서 요청하면 관리자 PC의 Claude Code가 실행하고 결과를 돌려줍니다.</p>
+    <p class="lead">휴대폰에서 요청하면 서버의 Claude Code가 실행하고 결과를 돌려줍니다.</p>
     <form id="loginForm" autocomplete="on">
       <div class="field"><label class="lbl" for="uid">아이디</label><input class="input" type="text" id="uid" autocomplete="username" autocapitalize="off" spellcheck="false" required></div>
       <div class="field"><label class="lbl" for="upw">비밀번호</label><input class="input" type="password" id="upw" autocomplete="current-password" required></div>
@@ -865,7 +865,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function pcText(pc) {
     if (!pc || (!pc.hasBridge && !pc.legacy)) return "아직 연결한 PC가 없어요.";
     if (!pc.seenAt) return "연결 코드를 만들었지만 아직 PC가 한 번도 연결되지 않았어요.";
-    return (pcOnline() ? "연결됨" : "꺼짐 · 마지막 " + ago(pc.seenAt)) + (pc.pc ? " · " + pc.pc : "") + (pc.dir ? " · " + pc.dir : "") + (pc.legacy ? " (관리자 PC 기본 다리)" : "");
+    return (pcOnline() ? "연결됨" : "꺼짐 · 마지막 " + ago(pc.seenAt)) + (pc.pc ? " · " + pc.pc : "") + (pc.dir ? " · " + pc.dir : "") + (pc.legacy ? " (서버 기본 다리)" : "");
   }
   function showBridgeKey(key) {
     var d = $("dlg"), f = el("form");
@@ -903,7 +903,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       var d = $("dlg"), f = el("form"), find = el("input", "input"), ul = el("ul", "users"), ROLE = { teacher: "선생님", student: "학생" };
       d.textContent = ""; d.className = "dlg wide";
       var h = el("h2", null, "원격 Claude 사용자 허용"); h.id = "dlgTitle"; f.appendChild(h);
-      f.appendChild(el("p", null, "켠 계정은 자기 PC의 Claude를 연결해 쓸 수 있어요. 요청·대화는 계정마다 따로 보이고, 관리자 PC로는 실행되지 않아요. 끄면 바로 로그아웃돼요."));
+      f.appendChild(el("p", null, "켠 계정은 자기 PC의 Claude를 연결해 쓸 수 있어요. 요청·대화는 계정마다 따로 보이고, 서버로는 실행되지 않아요. 끄면 바로 로그아웃돼요."));
       find.type = "search"; find.placeholder = "이름·아이디로 찾기"; find.setAttribute("aria-label", "사용자 찾기"); f.appendChild(find);
       function draw() {
         var q = find.value.trim().toLowerCase(); ul.textContent = "";
