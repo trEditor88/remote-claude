@@ -19,6 +19,7 @@ p{margin:0 0 12px} ol,ul{margin:0 0 14px;padding-left:22px} li{margin-bottom:6px
 .lead{font-size:1.2rem;color:var(--muted)}
 .toc{background:var(--parchment);border-radius:18px;padding:20px 24px;margin:32px 0}
 .toc ol{margin:8px 0 0;columns:2;column-gap:28px} .toc a{text-decoration:none}
+code{font-family:ui-monospace,Consolas,monospace;font-size:0.9em;background:var(--parchment);padding:1px 6px;border-radius:6px;word-break:break-all}
 .b{display:inline-block;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--parchment);font-size:0.9375rem;font-weight:600;white-space:nowrap}
 .note{border-left:3px solid var(--blue);background:var(--parchment);padding:12px 16px;border-radius:0 11px 11px 0;margin:14px 0;font-size:0.975rem}
 .warn{border-left-color:var(--red)}
@@ -33,13 +34,14 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <body>
 <div class="wrap">
 <h1>원격 Claude 사용 설명서</h1>
-<p class="lead">휴대폰에서 집 PC 의 Claude Code 에게 일을 시키고, 진행 상황과 결과를 실시간으로 받아 보는 개인 전용 사이트입니다.</p>
+<p class="lead">휴대폰에서 집 PC 의 Claude Code 에게 일을 시키고, 진행 상황과 결과를 실시간으로 받아 보는 사이트입니다. 각자 <b>자기 PC</b> 를 연결해서 씁니다.</p>
 
-<div class="note">이 사이트는 <b>PC 주인 한 사람만</b> 씁니다. 다른 사람은 로그인할 수 없습니다.</div>
+<div class="note"><b>시험지 사이트 계정</b>으로 들어갑니다. 원격 Claude 사용을 허락받은 계정만 쓸 수 있습니다. 쓰고 싶으면 <a href="mailto:workplacejun@gmail.com">workplacejun@gmail.com</a> 으로 문의하세요. 요청과 대화는 계정마다 따로 보이고, 내 요청은 <b>내가 연결한 PC</b> 에서만 실행됩니다.</div>
 
 <nav class="toc"><b>차례</b>
 <ol>
 <li><a href="#s1">로그인과 보안 코드</a></li>
+<li><a href="#pc">내 PC 연결하기</a></li>
 <li><a href="#s2">화면 알아보기</a></li>
 <li><a href="#s3">일 시키기</a></li>
 <li><a href="#s4">진행 보기·멈추기</a></li>
@@ -59,6 +61,17 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <li><b>로그인 유지</b>는 기본으로 켜져 있습니다. 끄면 브라우저를 닫거나 12시간이 지나면 다시 로그인해야 합니다. 남의 기기에서는 꺼 두세요.</li>
 <li>너무 많이 틀리면 15~30분 동안 잠깁니다. 잠깐 기다렸다 다시 하세요.</li>
 </ul>
+
+<h2 id="pc">내 PC 연결하기 (처음 한 번)</h2>
+<p>요청을 실제로 실행할 PC(윈도우)를 내 계정에 연결합니다.</p>
+<ol>
+<li>그 PC 에 <b>Python 3</b> 와 <b>Claude Code</b> 를 설치하고, 터미널에서 <code>claude</code> 를 한 번 실행해 로그인해 둡니다.</li>
+<li>사이트에서 톱니(설정) → <b>내 PC 연결</b> → <span class="b">연결하기</span>를 누릅니다.</li>
+<li>나온 명령을 <span class="b">명령 복사</span>로 복사해, 그 PC 의 PowerShell 에 붙여 넣고 Enter. 명령 끝의 작업 폴더(Claude 가 일할 곳)는 바꿔도 됩니다.</li>
+<li>"원격 Claude 다리 시작"이 보이면 연결 끝입니다. 사이트에서 <span class="b">다 했어요</span>를 누릅니다.</li>
+<li>창을 닫으면 멈춥니다. PC 를 켤 때마다 저절로 켜지게 하려면 같은 폴더에서 <code>python remote_claude.py --install</code> 을 한 번 실행하세요.</li>
+</ol>
+<div class="note warn"><b>연결 코드는 한 번만 보입니다.</b> 비밀번호처럼 다루고 남에게 보여 주지 마세요. 연결한 PC 에서는 Claude 가 묻지 않고 파일을 읽고 고치고 명령을 실행합니다(위험한 명령은 막혀 있음). 코드가 새어 나간 것 같으면 설정에서 <span class="b">새 코드</span>를 만들거나 <span class="b">끊기</span>를 누르세요.</div>
 
 <h2 id="s2">2. 화면 알아보기</h2>
 <div class="tbl"><table>
@@ -89,7 +102,7 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <li><span class="b">보내기</span>(또는 Enter)를 누릅니다. PC 에서는 Shift+Enter 로 줄을 바꿉니다.</li>
 </ol>
 <h3>빠른 작업</h3>
-<p>자주 하는 일(상태 점검, 서버 테스트, 기록 확인, 사이트 배포)을 버튼 한 번으로 보냅니다. 배포는 실행 전에 한 번 더 묻습니다.</p>
+<p>자주 하는 일(상태 점검, 서버 테스트, 기록 확인, 사이트 배포)을 버튼 한 번으로 보냅니다. 배포는 실행 전에 한 번 더 묻습니다. 빠른 작업은 이 사이트를 만든 사람의 프로젝트에 맞춘 것이라, 다른 PC 에서는 직접 적어서 시키는 편이 낫습니다.</p>
 <h3>위험 허용</h3>
 <div class="note warn">안전을 위해 배포·푸시·데이터 삭제·폴더 통째 삭제·시스템 설정·비밀 값 읽기 같은 위험한 명령은 기본으로 <b>막혀</b> 있습니다. 꼭 필요할 때만 <span class="b">위험 허용</span>을 켜고 <span class="b">허용</span>을 누르세요. 그 요청 하나에만 적용되고, 보내고 나면 저절로 꺼집니다.</div>
 
@@ -121,6 +134,7 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <h2 id="s6">6. 보안 설정 (톱니)</h2>
 <div class="tbl"><table>
 <tr><th>항목</th><th>하는 일</th></tr>
+<tr><td>내 PC 연결</td><td>연결 상태(연결됨 / 꺼짐 · 마지막 시각, PC 이름, 작업 폴더). <span class="b">새 코드</span>는 예전 코드를 바로 못 쓰게 하고 새로 연결, <span class="b">끊기</span>는 그 PC 가 더 이상 요청을 못 받게 합니다.</td></tr>
 <tr><td>보안 코드</td><td>6자리 코드를 정하거나 바꿉니다. 바꿀 때는 비밀번호와 지금 코드가 필요합니다.</td></tr>
 <tr><td>로그인 유지</td><td>이 기기에서 로그인을 오래 유지할지 정합니다.</td></tr>
 <tr><td>믿는 기기</td><td>보안 코드로 확인한 기기 수와 지금 로그인된 곳 수. <span class="b">모두 해제</span>를 누르면 이 기기를 뺀 모든 기기가 로그아웃되고, 다음에 다시 코드를 물어봅니다.</td></tr>
@@ -138,11 +152,11 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <h2 id="s8">8. 이럴 땐 이렇게</h2>
 <div class="tbl"><table>
 <tr><th>상황</th><th>해결</th></tr>
-<tr><td>계속 "대기"에서 안 넘어가요</td><td>맨 위가 PC 꺼짐이면 PC 를 켜세요. 켜지면 쌓인 요청부터 실행합니다. "1분 넘게 기다리는 요청" 띠가 계속 뜨면 PC 의 원격 Claude 다리가 꺼진 것입니다(5분 안에 저절로 다시 켜짐).</td></tr>
+<tr><td>계속 "대기"에서 안 넘어가요</td><td>맨 위가 PC 꺼짐이면 PC 를 켜세요. 켜지면 쌓인 요청부터 실행합니다. "1분 넘게 기다리는 요청" 띠가 계속 뜨면 PC 의 다리 창이 닫힌 것입니다. 그 PC 에서 다리를 다시 실행하거나 <code>--install</code> 로 자동 실행을 켜 두세요. 아직 연결한 PC 가 없다면 먼저 <a href="#pc">내 PC 연결하기</a>를 하세요.</td></tr>
 <tr><td>오류로 끝났어요</td><td>작업 기록을 펼쳐 마지막 줄을 봅니다. <span class="b">다시 쓰기</span>로 고쳐 보내세요.</td></tr>
 <tr><td>너무 오래 걸려요</td><td><span class="b">중지</span> → <span class="b">멈추기</span>. 일을 작게 나눠 다시 시키세요.</td></tr>
 <tr><td>"보안 코드가 맞지 않아요"</td><td>남은 기회 안에 다시 넣으세요. 시간이 지나면 <span class="b">처음부터 다시 로그인</span>.</td></tr>
-<tr><td>"관리자 계정만 쓸 수 있습니다"</td><td>이 사이트는 PC 주인 계정으로만 들어갈 수 있습니다.</td></tr>
+<tr><td>로그인이 안 돼요(허락되지 않은 계정)</td><td>원격 Claude 사용을 허락받은 계정만 들어갈 수 있습니다. <a href="mailto:workplacejun@gmail.com">workplacejun@gmail.com</a> 으로 문의하세요. 허락이 취소되면 바로 로그아웃됩니다.</td></tr>
 <tr><td>휴대폰을 잃어버렸어요</td><td>다른 기기로 로그인 → 설정 → 믿는 기기 <span class="b">모두 해제</span> → 비밀번호와 보안 코드 변경.</td></tr>
 </table></div>
 
