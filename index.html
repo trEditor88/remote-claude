@@ -403,7 +403,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       <p class="msg-bad" id="codeMsg" role="alert" hidden></p>
       <button class="back" id="codeBack" type="button">처음부터 다시 로그인</button>
     </form>
-    <p class="note">시험지 사이트 계정으로 들어갑니다. 관리자가 원격 Claude 사용을 허락한 계정만 쓸 수 있어요.</p>
+    <p class="note">공유 계정(HEO Works)으로 들어갑니다. <a href="https://heoworks.pages.dev/#login=rc">HEO Works 에서 로그인</a>하면 바로 열려요. 관리자가 원격 Claude 사용을 허락한 계정만 쓸 수 있어요.</p>
   </section>
 </main>
 
@@ -1534,7 +1534,19 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     for (var i = 0; i < ts.length; i++) ts[i].textContent = clock((serverNow() - Number(ts[i].getAttribute("data-start"))) / 1000);
     if (auth) renderPc();
   }, 1000);
-  show(!!(auth && auth.token && auth.user));   // 관리자가 허용한 계정도 씀(서버가 rcAuth 로 확인)
+  // HEO Works 에서 열었으면 주소의 일회용 코드(#sso=…)로 로그인. 비밀번호 대신이므로 믿는 기기여도 늘 보안 코드를 묻는다. 코드는 바로 주소에서 지운다
+  var sso = (location.hash.match(/[#&]sso=([A-Za-z0-9]{40})/) || [])[1];
+  if (sso) {
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    show(false);
+    api({ action: "ssoRedeem", svc: "rc", code: sso, keep: $("keep").checked, device: deviceId(), ua: navigator.userAgent }).then(function (r) {
+      if (r.error === "need_code") { challenge = r.challenge; loginStep(true); return; }
+      if (r.ok) { finishLogin(r); return; }
+      if (r.error === "need_pw") { $("loginMsg").textContent = "원격 Claude 는 처음 한 번 비밀번호로 로그인해 보안 코드를 정해야 해요. 그다음부터는 HEO Works 에서 열면 보안 코드만 물어요."; $("loginMsg").hidden = false; $("uid").focus(); return; }
+      if (auth && auth.token && auth.user) { show(true); return; }
+      $("loginMsg").textContent = r.error === "sso_expired" ? "공유 계정 로그인 코드가 만료됐어요. 다시 열거나 직접 로그인해 주세요." : errMsg(r); $("loginMsg").hidden = false;
+    });
+  } else show(!!(auth && auth.token && auth.user));   // 관리자가 허용한 계정도 씀(서버가 rcAuth 로 확인)
 })();
 </script>
 </body>
