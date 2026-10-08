@@ -42,6 +42,13 @@ def load_conf(argv):
         if v:
             conf[k] = os.path.abspath(v) if k == 'dir' else v.strip()
             changed = True
+    # 다른 사람 PC 처음 실행: 연결 코드를 명령줄에 쓰면 PowerShell 기록에 남으므로 여기서 묻는다(입력이 화면에 안 보임)
+    if not conf.get('key') and not os.path.exists(LEGACY) and __name__ == '__main__' and sys.stdin and sys.stdin.isatty():
+        import getpass
+        k = getpass.getpass('원격 Claude 사이트의 연결 코드를 붙여 넣고 Enter (화면에 안 보여요): ').strip()
+        if k:
+            conf['key'] = k
+            changed = True
     if changed:
         with open(CONF, 'w', encoding='utf-8') as f:
             json.dump(conf, f, ensure_ascii=False, indent=2)
@@ -58,6 +65,7 @@ TIMEOUT_S = 20 * 60
 INBOX = os.path.join(ROOT, 'remote-claude-inbox')
 EXT = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'}
 POLL_S = 5
+IDLE_POLL_S = 15
 PROGRESS_S = 3      # 작업 기록이 바뀌었으면 이 간격으로 보냄
 CHECK_S = 5         # 바뀐 게 없어도 이 간격으로 중지 요청 확인
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)   # pythonw 에서 claude 창이 뜨지 않게
@@ -89,6 +97,7 @@ def child_env():
     drop = ('ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE') if LEGACY_MODE else ('CLAUDECODE',)   # 다른 사람 PC 는 API 키로 쓸 수도 있어 그대로 둠
     env = {k: v for k, v in os.environ.items()
            if k not in drop and not k.startswith(('CLAUDE_CODE_', 'CLAUDE_AGENT_SDK'))}
+    env.update(PYTHONUTF8='1', PYTHONIOENCODING='utf-8')   # 보호 훅·파이썬 명령이 한글을 cp949 로 읽다 고장 나지 않게
     return env
 
 
@@ -172,8 +181,27 @@ def read_guard(path, seen):
     return out, len(rows)
 
 
+def guard_works():
+    """보호 장치가 이 PC 에서 실제로 막는지 요청마다 확인(파일 없음·깨짐·파이썬 문제면 bypassPermissions 로 그냥 실행되므로)."""
+    sample = json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'git push origin main  # 한글 확인'}}, ensure_ascii=False).encode('utf-8')
+    if not os.path.isfile(GUARD):
+        return False
+    try:
+        r = subprocess.run([console_python(), GUARD], input=sample, capture_output=True, timeout=30, creationflags=NO_WINDOW,
+                           env=dict(child_env(), RC_ALLOW_DANGER='0', RC_GUARD_LOG='', RC_ROOT=ROOT))   # 실제 실행과 같은 환경
+        # 파이썬의 '파일 없음'도 종료 코드 2 라서, 보호 장치가 직접 쓴 표시까지 확인한다
+        return r.returncode == 2 and b'[rc_guard]' in r.stderr
+    except Exception:
+        return False
+
+
 def run(job):
-    cmd = [claude_exe(), '-p', with_files(job['prompt'], save_files(job)), '--output-format', 'stream-json', '--verbose', '--max-turns', '40',
+    if not guard_works():
+        return {'result': '', 'error': 'PC 의 보호 장치(rc_guard.py)가 동작하지 않아 실행하지 않았어요. 다리 폴더에 rc_guard.py 가 있는지 확인하세요.', 'sec': 0}
+    prompt = with_files(job['prompt'], save_files(job))
+    if prompt.startswith('-'):
+        prompt = ' ' + prompt   # '-' 로 시작하면 claude 가 옵션으로 읽지 않게
+    cmd = [claude_exe(), '-p', prompt, '--output-format', 'stream-json', '--verbose', '--max-turns', '40',
            '--settings', guard_settings()]
     guard_log = os.path.join(os.environ.get('TEMP', ROOT), f"rc_guard_{job.get('id', 'x')}.jsonl")
     try:
@@ -242,7 +270,9 @@ def run(job):
             if body:
                 last_check = now
                 try:
-                    if post(body, timeout=15).get('cancel'):
+                    pr = post(body, timeout=15)
+                    # 중지 요청, 또는 허용이 꺼져 이 다리가 거절됨(bad_key) → 바로 끈다
+                    if pr.get('cancel') or pr.get('error') == 'bad_key':
                         kill_tree(p); canceled = True
                         break
                 except Exception:
@@ -365,8 +395,8 @@ def install():
 
 if __name__ == '__main__':
     if not KEY:
-        print('연결 코드가 없어요. 원격 Claude 사이트 → 설정 → "내 PC 연결"에서 코드를 만든 뒤 이렇게 실행하세요:\n'
-              '  python remote_claude.py --key <연결 코드> --dir <Claude 가 일할 폴더>')
+        print('연결 코드가 없어요. 원격 Claude 사이트 → 설정 → "내 PC 연결"에서 코드를 만든 뒤 다시 실행하면 연결 코드를 물어요:\n'
+              '  python remote_claude.py --dir <Claude 가 일할 폴더>')
         sys.exit(1)
     if not os.path.isdir(ROOT):
         print('작업 폴더가 없어요:', ROOT, '\n  python remote_claude.py --dir <있는 폴더> 로 다시 정하세요.'); sys.exit(1)
@@ -385,10 +415,13 @@ if __name__ == '__main__':
     if not LEGACY_MODE and sys.stdout.isatty():
         print('이 창을 닫으면 멈춰요. 자동으로 켜려면: python remote_claude.py --install', flush=True)
     BOOT = True
+    idle_since = time.time()
     while True:
         try:
             if once():
+                idle_since = time.time()
                 continue
         except Exception as e:
             print(time.strftime('%H:%M:%S'), '오류', e, flush=True)
-        time.sleep(POLL_S)
+        # 2분 넘게 할 일이 없으면 15초마다(서버 무료 한도 아끼기). 요청을 받으면 다시 5초
+        time.sleep(POLL_S if time.time() - idle_since < 120 else IDLE_POLL_S)

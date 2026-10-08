@@ -6,6 +6,7 @@
 <title>원격 Claude</title>
 <meta name="description" content="서버의 Claude Code에게 일을 시키고 결과를 받습니다.">
 <meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://exam-api.dawn-sea-4052.workers.dev http://127.0.0.1:* http://localhost:* data: blob:; manifest-src 'self'; base-uri 'none'; object-src 'none'">
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='16'%20fill='%230066CC'/%3E%3Cpath%20d='M19%2022l12%2010-12%2010'%20fill='none'%20stroke='%23fff'%20stroke-width='6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Cpath%20d='M35%2043h11'%20fill='none'%20stroke='%23fff'%20stroke-width='6'%20stroke-linecap='round'/%3E%3C/svg%3E">
@@ -390,7 +391,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     <form id="loginForm" autocomplete="on">
       <div class="field"><label class="lbl" for="uid">아이디</label><input class="input" type="text" id="uid" autocomplete="username" autocapitalize="off" spellcheck="false" required></div>
       <div class="field"><label class="lbl" for="upw">비밀번호</label><input class="input" type="password" id="upw" autocomplete="current-password" required></div>
-      <label class="check"><input type="checkbox" id="keep" checked><span>로그인 유지<small>끄면 브라우저를 닫거나 12시간이 지나면 다시 로그인해요</small></span></label>
+      <label class="check"><input type="checkbox" id="keep"><span>로그인 유지<small>끄면 브라우저를 닫거나 12시간이 지나면 다시 로그인해요</small></span></label>
       <button class="btn btn-block" id="loginBtn" type="submit">들어가기</button>
       <p class="msg-bad" id="loginMsg" role="alert" hidden></p>
     </form>
@@ -500,6 +501,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku" };
   var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요." };
   var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "원격 Claude 사용을 허락받은 계정만 쓸 수 있어요. 관리자에게 요청하세요.",
+    need_setup: "먼저 설정에서 보안 코드를 정해 주세요. 정하기 전에는 PC로 실행하지 않아요.",
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
     rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
     rc_not_active: "이미 끝난 요청이에요.", bad_code: "보안 코드가 맞지 않아요.", code_expired: "확인 시간이 지났어요. 처음부터 다시 로그인해 주세요.",
@@ -630,6 +632,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       if (o.input) {
         if (o.input.label) f.appendChild(el("p", "dlg-lbl", o.input.label));
         inp = el("input", "input"); inp.type = "text"; inp.value = o.input.value || ""; inp.placeholder = o.input.placeholder || ""; inp.maxLength = o.input.max || 60;
+        if (o.input.numeric) { inp.className = "input code-input"; inp.inputMode = "numeric"; inp.maxLength = 6; inp.autocomplete = "one-time-code"; inp.addEventListener("input", function () { inp.value = inp.value.replace(/\D/g, "").slice(0, 6); }); }
         inp.setAttribute("aria-label", o.input.label || o.title); inp.autocomplete = "off";
         f.appendChild(inp);
       }
@@ -680,6 +683,10 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var isImg = function (s) { return IMG.test(s); };
   function imgBlock(s) {
     var m = IMG.exec(s), fig = el("figure", "md-img"), a = el("a"), im = el("img");
+    if (m[2].indexOf("data:") !== 0) {
+      var p = el("p"), ln = el("a", null, "그림 열기 · " + (m[1] || m[2].replace(/^https:\/\/([^\/]+).*$/, "$1")));
+      ln.href = m[2]; ln.target = "_blank"; ln.rel = "noopener noreferrer"; p.appendChild(ln); return p;
+    }
     im.src = m[2]; im.alt = m[1] || "그림"; im.loading = "lazy"; im.decoding = "async";
     a.href = m[2]; a.target = "_blank"; a.rel = "noopener noreferrer"; a.title = "크게 보기";
     if (m[2].indexOf("data:") === 0) a.download = (m[1] || "그림").replace(/[\\\/:*?"<>|]/g, "").slice(0, 40) + "." + (/svg/.test(m[2].slice(0, 30)) ? "svg" : "png");
@@ -760,11 +767,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 
   /* ── 위험 명령: 막은 줄 모으기·허용 켜기(경고 확인)·새로 막히면 알림 ── */
   function dangerLines(x) { return x.danger ? String(x.danger).split("\n").filter(Boolean) : String(x.progress || "").split("\n").filter(function (s) { return /^(막음|허용함) · /.test(s); }); }
-  function setAllow(on) { allowNext = on; $("danger").setAttribute("aria-pressed", String(on)); renderHint(); }
+  var allowCode = "";   // 위험 허용 때 다시 넣은 보안 코드(메모리에만, 보내면 지움)
+  function setAllow(on, code) { allowNext = on; allowCode = on ? (code || "") : ""; $("danger").setAttribute("aria-pressed", String(on)); renderHint(); }
+  // 토큰만 훔친 사람이 위험한 일(위험 허용·연결 코드)을 못 하게 보안 코드를 다시 묻는다
+  function askCode(title, text, ok, danger) {
+    if (!$("needSetup").hidden) { toast(ERR.need_setup); setupCode(false); return Promise.resolve(null); }
+    return dialog({ title: title, text: text, input: { label: "보안 코드 (6자리)", numeric: true }, ok: ok, danger: !!danger, required: true })
+      .then(function (v) { v = v == null ? "" : String(v).trim(); return /^\d{6}$/.test(v) ? v : (v ? (toast("6자리 숫자를 넣어 주세요"), null) : null); });
+  }
   function askAllow(then) {
     if (allowNext) { if (then) then(); return; }
-    dialog({ title: "위험 명령을 허용할까요?", text: "이번 요청 하나에서 배포·푸시, 원격 DB 쓰기, 폴더 통째 삭제, 시스템 설정 바꾸기 같은 명령도 실행돼요. 되돌리기 어려운 일이 생길 수 있어요. 보내고 나면 자동으로 다시 꺼져요.", ok: "허용", danger: true })
-      .then(function (v) { if (v) { setAllow(true); if (then) then(); } });
+    askCode("위험 명령을 허용할까요?", "이번 요청 하나에서 배포·푸시, 원격 DB 쓰기, 폴더 통째 삭제, 시스템 설정 바꾸기 같은 명령도 실행돼요. 되돌리기 어려운 일이 생길 수 있어요. 보내고 나면 자동으로 다시 꺼져요. 보안 코드를 다시 넣어 주세요.", "허용", true)
+      .then(function (c) { if (c) { setAllow(true, c); if (then) then(); } });
   }
   function watchDanger() {
     var first = dangerSeen === null; if (first) dangerSeen = {};
@@ -785,16 +799,16 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     { i: "send", t: "자리 뽑기 배포", p: "/deploy 절차대로 자리 뽑기 사이트(seat)를 배포하고 라이브 반영까지 확인해 줘.", allow: true }
   ];
   function runQuick(q) {
-    function go() {
-      api({ action: "rcSubmit", prompt: q.p, model: opts.model, mode: q.mode || "", allow: !!q.allow }).then(function (r) {
-        if (!r.ok) { toast(errMsg(r)); return; }
+    function go(code) {
+      api({ action: "rcSubmit", prompt: q.p, model: opts.model, mode: q.mode || "", allow: !!q.allow, code: code || undefined }).then(function (r) {
+        if (!r.ok) { toast(errMsg(r)); if (r.error === "need_setup") setupCode(false); return; }
         api({ action: "rcThread", thread: r.thread, title: "⚡ " + q.t });
         pendingFolder = ""; setCur(r.thread); threadSig = ""; justMoved = true; closeSide();
         toast("‘" + q.t + "’ 을(를) 보냈어요"); load();
       });
     }
     if (!q.allow) { go(); return; }
-    dialog({ title: q.t + "을(를) 실행할까요?", text: "배포처럼 되돌리기 어려운 작업이라 위험 명령을 허용하고 보내요. 실행 중에도 중지할 수 있어요.", ok: "실행", danger: true }).then(function (v) { if (v) go(); });
+    askCode(q.t + "을(를) 실행할까요?", "배포처럼 되돌리기 어려운 작업이라 위험 명령을 허용하고 보내요. 실행 중에도 중지할 수 있어요. 보안 코드를 다시 넣어 주세요.", "실행", true).then(function (c) { if (c) go(c); });
   }
   function quickMenu() { return QUICK.map(function (q) { return q === "-" ? q : { icon: q.i, label: q.t, danger: !!q.allow, run: function () { runQuick(q); } }; }); }
 
@@ -855,7 +869,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         if (!/^\d{6}$/.test(v.code)) return Promise.resolve(ERR.bad_code_format);
         if (v.code !== v.code2) return Promise.resolve("새 보안 코드 두 칸이 서로 달라요.");
         return api({ action: "rcCodeSet", pw: v.pw, current: v.cur || "", code: v.code, device: deviceId(), ua: navigator.userAgent }).then(function (r) {
-          if (!r.ok) return r.error === "bad_login" ? "비밀번호가 맞지 않아요." : r.error === "bad_code" ? "지금 보안 코드가 맞지 않아요." : errMsg(r);
+          if (!r.ok) return r.error === "bad_login" ? (isSet ? "비밀번호나 지금 보안 코드가 맞지 않아요." : "비밀번호가 맞지 않아요.") : errMsg(r);
           toast(isSet ? "보안 코드를 바꿨어요" : "보안 코드를 정했어요"); $("needSetup").hidden = true; return null;
         });
       } });
@@ -875,23 +889,30 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     var ol = el("ol", "setup-steps");
     ["연결할 PC에 Python 3와 Claude Code를 설치하고, 터미널에서 claude 를 한 번 실행해 로그인해 두세요.",
      "그 PC에서 PowerShell을 열고 아래 명령을 붙여 넣으세요. 마지막의 작업 폴더(Claude가 일할 곳)는 바꿔도 돼요.",
+     "연결 코드를 물으면 아래 '연결 코드 복사'로 복사해 붙여 넣고 Enter(화면에는 안 보여요). 명령 기록에 코드가 남지 않게 따로 넣어요.",
      "\"원격 Claude 다리 시작\"이 보이면 연결 끝이에요. 창을 닫으면 멈추니, 자동으로 켜려면 같은 폴더에서 python remote_claude.py --install 을 실행하세요."].forEach(function (t) { ol.appendChild(el("li", null, t)); });
     f.appendChild(ol);
     var cmd = "[Net.ServicePointManager]::SecurityProtocol='Tls12'; $d=\"$HOME\\remote-claude\"; New-Item -ItemType Directory -Force $d | Out-Null; Set-Location $d; " +
       "iwr " + BRIDGE_URL + "remote_claude.py -OutFile remote_claude.py; iwr " + BRIDGE_URL + "rc_guard.py -OutFile rc_guard.py; " +
-      "python remote_claude.py --key " + key + " --dir \"$HOME\\Documents\"";
+      "python remote_claude.py --dir \"$HOME\\Documents\"";
     var box = el("div", "cmd"), pre = el("pre", null, cmd), cp = el("button", "btn-sm");
     cp.type = "button"; cp.appendChild(ic("copy")); cp.appendChild(document.createTextNode("명령 복사")); cp.onclick = function () { copy(cmd); };
     box.appendChild(pre); box.appendChild(cp); f.appendChild(box);
+    var kbox = el("div", "cmd"), kpre = el("pre", null, key), kcp = el("button", "btn-sm");
+    kcp.type = "button"; kcp.appendChild(ic("lock")); kcp.appendChild(document.createTextNode("연결 코드 복사")); kcp.onclick = function () { copy(key); };
+    kbox.appendChild(kpre); kbox.appendChild(kcp); f.appendChild(kbox);
     f.appendChild(el("p", null, "연결한 PC에서는 Claude가 묻지 않고 파일을 읽고 고치고 명령을 실행해요. 배포·삭제 같은 위험한 명령은 막아 두고, 사이트에서 '위험 허용'을 켠 요청만 실행해요."));
     var btns = el("div", "dlg-btns"), close = el("button", "btn", "다 했어요");
     close.type = "button"; close.onclick = function () { d.close(); load(); }; btns.appendChild(close); f.appendChild(btns);
     d.appendChild(f); d.showModal(); cp.focus();
   }
   function newBridge(had) {
-    var go = function () { api({ action: "rcBridgeNew", device: deviceId(), ua: navigator.userAgent }).then(function (r) { if (!r.ok) { toast(errMsg(r)); return; } showBridgeKey(r.key); }); };
-    if (!had) { go(); return; }
-    dialog({ title: "연결 코드를 새로 만들까요?", text: "지금 연결된 PC는 끊기고, 새 코드로 다시 연결해야 해요.", ok: "새로 만들기", danger: true }).then(function (v) { if (v) go(); });
+    askCode(had ? "연결 코드를 새로 만들까요?" : "PC 연결 코드 만들기", (had ? "지금 연결된 PC는 끊기고, 새 코드로 다시 연결해야 해요. " : "") + "이 코드로 PC가 이 계정의 요청을 받아 실행해요. " +
+      (auth && auth.user && auth.user.role === "admin" && !had ? "관리자 계정은 코드를 만들면 서버 PC 다리 대신 새로 연결한 PC만 요청을 받아요. " : "") + "보안 코드를 다시 넣어 주세요.", had ? "새로 만들기" : "만들기", had)
+      .then(function (c) {
+        if (!c) return;
+        api({ action: "rcBridgeNew", code: c, device: deviceId(), ua: navigator.userAgent }).then(function (r) { if (!r.ok) { toast(errMsg(r)); if (r.error === "need_setup") setupCode(false); return; } showBridgeKey(r.key); });
+      });
   }
   function delBridge() {
     dialog({ title: "PC 연결을 끊을까요?", text: "이 계정의 연결 코드가 지워져 그 PC는 더 이상 요청을 받지 못해요. 다시 쓰려면 새 코드를 만들면 돼요.", ok: "연결 끊기", danger: true })
@@ -1395,11 +1416,17 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     var text = $("prompt").value.trim(); if ((!text && !pics.length) || sending || pics.some(function (p) { return !p.data; })) return;
     sending = true; updateSend(); $("sendHint").className = "comp-hint";
     var body = { action: "rcSubmit", prompt: text, model: opts.model, mode: opts.mode, allow: allowNext };
+    if (allowNext) body.code = allowCode;
     if (pics.length) body.images = pics.map(function (p) { return { name: p.name, data: p.data }; });
     if (cur) body.thread = cur; else if (pendingFolder) body.folder = pendingFolder;
     api(body, pics.length ? 60000 : 0).then(function (r) {
       sending = false;
-      if (!r.ok) { sendHintError(errMsg(r)); updateSend(); return; }
+      if (!r.ok) {
+        if (r.error === "bad_code" || r.error === "locked") setAllow(false);   // 다시 허용하며 코드를 새로 넣게
+        sendHintError(errMsg(r)); updateSend();
+        if (r.error === "need_setup") setupCode(false);
+        return;
+      }
       if (r.thread && r.thread !== cur) { setCur(r.thread); threadSig = ""; }
       pendingFolder = ""; setAllow(false);
       $("prompt").value = ""; pics = []; renderPics(); grow(); updateSend(); justMoved = true;
@@ -1440,7 +1467,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   });
   $("code").addEventListener("input", function () { this.value = this.value.replace(/\D/g, "").slice(0, 6); });
   $("codeBack").addEventListener("click", function () { challenge = ""; loginStep(false); $("upw").focus(); });
-  try { if (localStorage.getItem(OKEY + ":keep") === "0") $("keep").checked = false; } catch (e) {}
+  try { if (localStorage.getItem(OKEY + ":keep") === "1") $("keep").checked = true; } catch (e) {}
   $("keep").addEventListener("change", function () { try { localStorage.setItem(OKEY + ":keep", this.checked ? "1" : "0"); } catch (e) {} });
   $("openSettings").addEventListener("click", openSettings);
   $("needSetup").addEventListener("click", function () { setupCode(false); });
