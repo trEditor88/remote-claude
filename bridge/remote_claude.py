@@ -8,7 +8,7 @@
 
 - 이미 켜져 있으면 두 번째는 바로 끝난다(127.0.0.1:47213 포트로 확인).
 - PC 는 서버로 나가는 요청만 한다(포트를 열지 않음). 인증은 study-helper/sync.json 의 key(워커 키).
-- 작업 폴더는 D:\\AI_HEO, 한 요청당 최대 20분·40턴. 같은 대화(thread)의 요청은 서버가 준 sessionId 로 이어 간다.
+- 작업 폴더는 D:\\AI_HEO, 한 요청당 시간 제한 없음(사이트 '중지'로 끔)·최대 150턴. 같은 대화(thread)의 요청은 서버가 준 sessionId 로 이어 간다.
 - 실행 중에는 몇 초마다 작업 기록(읽은 파일·실행한 명령)을 서버에 보내고, 사이트에서 '중지'를 누르면 Claude 를 끈다.
 - 서버 주소는 sync.json 의 url(Cloudflare Worker).
 - 요청에 사진이 붙어 있으면 remote-claude-inbox 폴더에 저장하고, 그 경로를 요청 앞에 적어 Claude 가 Read 로 보게 한다.
@@ -61,7 +61,7 @@ def load_conf(argv):
 
 
 API, KEY, ROOT, LEGACY_MODE = load_conf(sys.argv)
-TIMEOUT_S = 20 * 60
+TIMEOUT_S = 0       # 0 = 시간 제한 없음(2026-10-09 사용자 지시). 멈추려면 사이트의 '중지'
 INBOX = os.path.join(ROOT, 'remote-claude-inbox')
 EXT = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'}
 POLL_S = 5
@@ -201,7 +201,7 @@ def run(job):
     prompt = with_files(job['prompt'], save_files(job))
     if prompt.startswith('-'):
         prompt = ' ' + prompt   # '-' 로 시작하면 claude 가 옵션으로 읽지 않게
-    cmd = [claude_exe(), '-p', prompt, '--output-format', 'stream-json', '--verbose', '--max-turns', '40',
+    cmd = [claude_exe(), '-p', prompt, '--output-format', 'stream-json', '--verbose', '--max-turns', '150',
            '--settings', guard_settings()]
     guard_log = os.path.join(os.environ.get('TEMP', ROOT), f"rc_guard_{job.get('id', 'x')}.jsonl")
     try:
@@ -256,7 +256,7 @@ def run(job):
         new, guard_seen = read_guard(guard_log, guard_seen)
         log += new; danger += new
         now = time.time()
-        if now - t0 > TIMEOUT_S:
+        if TIMEOUT_S and now - t0 > TIMEOUT_S:
             kill_tree(p); timed_out = True
             break
         if job.get('id'):
@@ -301,7 +301,7 @@ def run(job):
     result = str(final.get('result') or '')
     sub = final.get('subtype')
     is_err = bool(final.get('is_error')) or sub not in (None, 'success')
-    why = {'error_max_turns': '40턴 안에 끝내지 못했습니다. 요청을 나눠서 보내 주세요.'}.get(sub, str(sub))
+    why = {'error_max_turns': '150턴 안에 끝내지 못했습니다. "이어서 해"로 계속하거나 요청을 나눠서 보내 주세요.'}.get(sub, str(sub))
     return dict(out, result=result[:60000] or (why if is_err else ''), error=(result[:300] or why) if is_err else '')
 
 
