@@ -12,6 +12,9 @@
 - 실행 중에는 몇 초마다 작업 기록(읽은 파일·실행한 명령)을 서버에 보내고, 사이트에서 '중지'를 누르면 Claude 를 끈다.
 - 서버 주소는 sync.json 의 url(Cloudflare Worker).
 - 요청에 사진이 붙어 있으면 remote-claude-inbox 폴더에 저장하고, 그 경로를 요청 앞에 적어 Claude 가 Read 로 보게 한다.
+- 작업 폴더 제한(v2, 2026-10-11): 사이트 설정 '작업 폴더'에서 고른 폴더(job.dirs)에서만 Claude 를 실행한다.
+  고른 폴더 첫째를 실행 위치로, 나머지는 --add-dir 로 주고, 보호 장치(rc_guard.py)에 RC_DIRS 로 넘겨 밖을 막는다.
+  ['*'] = 작업 폴더 전체, 비어 있으면 사진 받는 폴더(remote-claude-inbox)에서 대화만. 서버는 v2 가 아닌 다리에 요청을 주지 않는다.
 """
 import base64, glob, json, os, queue, shutil, socket, subprocess, sys, threading, time, urllib.request
 
@@ -128,6 +131,47 @@ def kill_tree(p):
         pass
 
 
+BRIDGE_V = 2
+SKIP_DIRS = ('__pycache__', 'node_modules', 'gas', 'remote-claude-inbox')
+
+
+CHAT = os.path.join(INBOX, 'chat')   # 고른 폴더가 없을 때 Claude 가 머무는 빈 폴더(대화만)
+
+
+def real_dir(p):
+    """링크·정션이 아닌 진짜 폴더인가(링크를 고르면 허용 범위가 링크 대상 전체로 넓어지므로 선택지에서 뺀다)."""
+    return os.path.isdir(p) and os.path.normcase(os.path.realpath(p)) == os.path.normcase(os.path.abspath(p))
+
+
+def folder_list():
+    """사이트 '작업 폴더'의 선택지: 작업 폴더 바로 아래 폴더들(숨김·배포 클론(*-repo)·캐시·링크 제외)."""
+    try:
+        names = sorted(n for n in os.listdir(ROOT) if real_dir(os.path.join(ROOT, n))
+                       and not n.startswith('.') and n not in SKIP_DIRS and not n.endswith('-repo'))
+    except OSError:
+        return []
+    return names[:150]
+
+
+def job_files_dir(job):
+    return os.path.join(INBOX, 'files', str(job.get('id') or 'x'))   # 이 요청의 사진만(다른 요청 사진·밀린 결과는 못 봄)
+
+
+def job_dirs(job):
+    """(실행 위치, 추가 폴더 목록, RC_DIRS 값). 고른 폴더가 지금 없으면 빼고, 하나도 없으면 빈 대화 폴더에서 대화만."""
+    d = job.get('dirs')
+    if d == ['*']:
+        return ROOT, [], '*'
+    names = [n for n in (d if isinstance(d, list) else []) if isinstance(n, str) and n in folder_list()]
+    paths = [os.path.join(ROOT, n) for n in names]
+    files = job_files_dir(job)
+    os.makedirs(CHAT, exist_ok=True)
+    extra = [files] if os.path.isdir(files) else []
+    if not paths:
+        return CHAT, extra, json.dumps([CHAT] + extra)
+    return paths[0], paths[1:] + extra, json.dumps(paths + extra)
+
+
 def save_files(job):
     """사진을 받아 INBOX 에 저장하고 경로 목록을 돌려준다(받지 못한 사진은 건너뜀)."""
     paths = []
@@ -135,8 +179,8 @@ def save_files(job):
         try:
             r = post({'action': 'rcFile', 'key': KEY, 'id': fid}, timeout=60)
             head, b64 = r['data'].split(',', 1)
-            os.makedirs(INBOX, exist_ok=True)
-            path = os.path.join(INBOX, f"{job['id']}_{i + 1}.{EXT.get(head[5:].split(';')[0], 'jpg')}")
+            os.makedirs(job_files_dir(job), exist_ok=True)
+            path = os.path.join(job_files_dir(job), f"{i + 1}.{EXT.get(head[5:].split(';')[0], 'jpg')}")
             with open(path, 'wb') as fp:
                 fp.write(base64.b64decode(b64))
             paths.append(path)
@@ -166,7 +210,8 @@ def console_python():
 
 
 def guard_settings():
-    """원격 요청에만 붙이는 위험 명령 막기 훅(tools/rc_guard.py). 평소 Claude Code 사용에는 영향 없음."""
+    """원격 요청에만 붙이는 위험 명령 막기 훅(tools/rc_guard.py). 평소 Claude Code 사용에는 영향 없음.
+    (Claude Code 의 Windows 격리(sandbox)는 2026-10 현재 이 PC 에서 잠겨 있어(feature gate) 쓰지 못함)"""
     return json.dumps({'hooks': {'PreToolUse': [{'matcher': '*', 'hooks': [{'type': 'command', 'command': f'"{console_python()}" "{GUARD}"', 'timeout': 30}]}]}})
 
 
@@ -182,33 +227,57 @@ def read_guard(path, seen):
 
 
 def guard_works():
-    """보호 장치가 이 PC 에서 실제로 막는지 요청마다 확인(파일 없음·깨짐·파이썬 문제면 bypassPermissions 로 그냥 실행되므로)."""
-    sample = json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'git push origin main  # 한글 확인'}}, ensure_ascii=False).encode('utf-8')
+    """보호 장치가 이 PC 에서 실제로 막는지 요청마다 확인(파일 없음·깨짐·파이썬 문제면 bypassPermissions 로 그냥 실행되므로).
+    ① 위험 명령(git push) ② 작업 폴더 밖 읽기(위험 허용을 켜도 막혀야 함)는 막고 ③ 고른 폴더 안 읽기는 통과해야 함.
+    문제가 없으면 '', 있으면 사용자에게 보여 줄 이유."""
     if not os.path.isfile(GUARD):
-        return False
+        return '다리 폴더에 rc_guard.py 가 없어요'
+    probe = os.path.join(ROOT, '__rc_probe__.txt')
+    tests = [({'tool_name': 'Bash', 'tool_input': {'command': 'git push origin main  # 한글 확인'}, 'cwd': ROOT}, {'RC_ALLOW_DANGER': '0', 'RC_DIRS': '*'}, 2),
+             ({'tool_name': 'Read', 'tool_input': {'file_path': probe}, 'cwd': CHAT}, {'RC_ALLOW_DANGER': '1', 'RC_DIRS': json.dumps([CHAT])}, 2),
+             ({'tool_name': 'Read', 'tool_input': {'file_path': os.path.join(CHAT, 'a.txt')}, 'cwd': CHAT}, {'RC_ALLOW_DANGER': '0', 'RC_DIRS': json.dumps([CHAT])}, 0)]
     try:
-        r = subprocess.run([console_python(), GUARD], input=sample, capture_output=True, timeout=30, creationflags=NO_WINDOW,
-                           env=dict(child_env(), RC_ALLOW_DANGER='0', RC_GUARD_LOG='', RC_ROOT=ROOT))   # 실제 실행과 같은 환경
-        # 파이썬의 '파일 없음'도 종료 코드 2 라서, 보호 장치가 직접 쓴 표시까지 확인한다
-        return r.returncode == 2 and b'[rc_guard]' in r.stderr
-    except Exception:
-        return False
+        for i, (sample, extra, want) in enumerate(tests):
+            r = subprocess.run([console_python(), GUARD], input=json.dumps(sample, ensure_ascii=False).encode('utf-8'), capture_output=True, timeout=30,
+                               creationflags=NO_WINDOW, env=dict(child_env(), RC_GUARD_LOG='', RC_ROOT=ROOT, RC_SHELL='1', **extra))   # 실제 실행과 같은 환경
+            # 파이썬의 '파일 없음'도 종료 코드 2 라서, 막을 때는 보호 장치가 직접 쓴 표시까지 확인한다
+            if r.returncode != want or (want == 2 and b'[rc_guard]' not in r.stderr):
+                return ('rc_guard.py 가 옛 버전이거나 고장 났어요(시험 %d). 다리 파일 두 개(remote_claude.py, rc_guard.py)를 함께 새로 받아 주세요' % (i + 1))
+        return ''
+    except Exception as e:
+        return f'rc_guard.py 를 실행하지 못했어요({type(e).__name__})'
 
 
-def run(job):
-    if not guard_works():
-        return {'result': '', 'error': 'PC 의 보호 장치(rc_guard.py)가 동작하지 않아 실행하지 않았어요. 다리 폴더에 rc_guard.py 가 있는지 확인하세요.', 'sec': 0}
+def run(job, fresh=False):
+    bad = guard_works()
+    if bad:
+        return {'result': '', 'error': ('PC 의 보호 장치가 동작하지 않아 실행하지 않았어요: ' + bad)[:300], 'sec': 0}
     prompt = with_files(job['prompt'], save_files(job))
     if prompt.startswith('-'):
         prompt = ' ' + prompt   # '-' 로 시작하면 claude 가 옵션으로 읽지 않게
     cmd = [claude_exe(), '-p', prompt, '--output-format', 'stream-json', '--verbose', '--max-turns', '150',
-           '--settings', guard_settings()]
+           ]
     guard_log = os.path.join(os.environ.get('TEMP', ROOT), f"rc_guard_{job.get('id', 'x')}.jsonl")
     try:
         os.remove(guard_log)
     except OSError:
         pass
-    env = dict(child_env(), RC_GUARD_LOG=guard_log, RC_ALLOW_DANGER='1' if job.get('allow') else '0', RC_ROOT=ROOT)
+    cwd, extra_dirs, rc_dirs = job_dirs(job)
+    cmd += ['--settings', guard_settings()]
+    limited = rc_dirs != '*'
+    no_shell = limited and not job.get('shell')
+    if limited:   # MCP 서버를 붙이지 않는다(파일·터미널을 다루는 MCP 로 폴더 제한을 돌아가지 못하게)
+        cmd += ['--strict-mcp-config']
+    if no_shell:   # 명령 실행을 끈 경우: 명령 도구를 아예 빼서 폴더 밖으로 나갈 길을 없앤다(보호 장치도 RC_SHELL=0 으로 한 번 더 막음)
+        cmd += ['--disallowedTools', 'Bash', 'PowerShell', 'Monitor']
+    for d in extra_dirs:
+        cmd += ['--add-dir', d]
+    # 임시 폴더도 요청마다 따로(다른 세션의 임시 파일·보호 장치 기록을 못 보게). 끝나면 지운다
+    job_tmp = os.path.join(os.environ.get('TEMP', ROOT), 'rc_jobs', str(job.get('id') or 'x'))
+    os.makedirs(job_tmp, exist_ok=True)
+    env = dict(child_env(), RC_GUARD_LOG=guard_log, RC_ALLOW_DANGER='1' if job.get('allow') else '0', RC_ROOT=ROOT, RC_DIRS=rc_dirs, RC_SHELL='0' if no_shell else '1')
+    if limited:
+        env.update(TEMP=job_tmp, TMP=job_tmp)
     guard_seen, danger = 0, []
     if job.get('model') in ('sonnet', 'opus', 'fable', 'haiku'):
         cmd += ['--model', job['model']]
@@ -216,10 +285,10 @@ def run(job):
     cmd += ['--permission-mode', 'plan' if job.get('mode') == 'plan' else 'bypassPermissions']
     if job.get('title'):
         cmd += ['-n', '원격: ' + ' '.join(job['title'].split())[:40]]
-    if job.get('sessionId'):
+    if job.get('sessionId') and not fresh:
         cmd += ['--resume', job['sessionId']]
     t0 = time.time()
-    p = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, creationflags=NO_WINDOW)
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, creationflags=NO_WINDOW)
     lines, err = queue.Queue(), []
     def read_out():
         for raw in p.stdout:
@@ -288,6 +357,7 @@ def run(job):
         os.remove(guard_log)
     except OSError:
         pass
+    shutil.rmtree(job_tmp, ignore_errors=True)
     skipped = f'… 앞의 {len(log) - 40}단계 생략\n' if len(log) > 40 else ''
     out = {'sessionId': final.get('session_id') or st['session'], 'sec': sec, 'progress': (skipped + '\n'.join(log[-40:]))[:4000],
            'usedModel': st['model'], 'turns': final.get('num_turns') or 0, 'danger': '\n'.join(danger)[:2000]}
@@ -297,12 +367,22 @@ def run(job):
         return dict(out, result='', error=f'{TIMEOUT_S // 60}분 안에 끝나지 않아 멈췄습니다.')
     if not final:
         msg = (b''.join(err).decode('utf-8', 'replace').strip() or f'결과 없이 끝났습니다(종료 코드 {p.returncode}).')
+        # 작업 폴더를 바꾸면 Claude 세션이 다른 폴더에 있어 이어 가지 못함 → 새 세션으로 한 번 다시
+        if job.get('sessionId') and not fresh and 'No conversation found' in msg:
+            return run_fresh(job)
         return dict(out, result=msg[:60000], error=msg[:300])
     result = str(final.get('result') or '')
+    if job.get('sessionId') and not fresh and final.get('is_error') and 'No conversation found' in (result + ' '.join(map(str, final.get('errors') or []))):
+        return run_fresh(job)
     sub = final.get('subtype')
     is_err = bool(final.get('is_error')) or sub not in (None, 'success')
     why = {'error_max_turns': '150턴 안에 끝내지 못했습니다. "이어서 해"로 계속하거나 요청을 나눠서 보내 주세요.'}.get(sub, str(sub))
     return dict(out, result=result[:60000] or (why if is_err else ''), error=(result[:300] or why) if is_err else '')
+
+
+def run_fresh(job):
+    """작업 폴더가 바뀌면 Claude 세션이 다른 폴더에 있어 이어 가지 못함 → 새 세션으로 한 번만 다시."""
+    return run(dict(job, prompt='[작업 폴더 설정이 바뀌어 이전 대화 내용 없이 새로 시작합니다]\n' + job['prompt']), fresh=True)
 
 
 PENDING = os.path.join(INBOX, 'pending-done')   # 못 보낸 결과(워커 키는 빼고 저장)
@@ -357,13 +437,20 @@ def flush_pending():
         print(time.strftime('%H:%M:%S'), '밀린 결과 보냄' if st == 'ok' else '밀린 결과 버림(서버 거절)', body.get('id'), flush=True)
 
 
+FOLDERS_SENT = [None, 0.0]
 BOOT = False   # 계속 실행할 때만 True: 첫 확인에서 서버가 '실행 중'으로 남은 옛 요청(다리가 꺼지며 끊긴 것)을 정리한다
 
 
 def once():
     global BOOT
     flush_pending()
-    r = post({'action': 'rcTake', 'key': KEY, 'boot': BOOT, 'dir': ROOT, 'pc': socket.gethostname()[:40]})
+    body = {'action': 'rcTake', 'key': KEY, 'boot': BOOT, 'dir': ROOT, 'pc': socket.gethostname()[:40], 'v': BRIDGE_V}
+    folders = folder_list()
+    if BOOT or folders != FOLDERS_SENT[0] or time.time() - FOLDERS_SENT[1] > 600:   # 켜질 때·바뀔 때·10분마다
+        body['folders'] = folders
+    r = post(body)
+    if 'folders' in body:
+        FOLDERS_SENT[:] = [folders, time.time()]
     BOOT = False
     if not r.get('ok') or not r.get('job'):
         return False

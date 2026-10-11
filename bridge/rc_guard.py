@@ -7,6 +7,8 @@
   막은 기록은 RC_GUARD_LOG 파일에 한 줄씩(JSON) 남기고, 다리가 사이트에 '위험 명령을 막았어요' 경고로 보낸다.
 - 사이트에서 '위험 명령 허용'을 켜고 보낸 요청은 RC_ALLOW_DANGER=1 → 막지 않고 기록만 남긴다.
 - 훅이 고장 나면(입력을 못 읽음·예외) 막는다(fail-closed). bypassPermissions 로 돌기 때문에 열어 두면 그대로 실행된다.
+- 작업 폴더 제한(RC_DIRS, 2026-10-11): 다리가 사이트 설정 '작업 폴더'에서 고른 폴더(절대 경로 JSON 목록)를 넘겨주면
+  그 밖은 읽기·쓰기·명령 모두 막는다. 이 제한은 '위험 허용'으로도 풀리지 않는다. RC_DIRS 가 없거나 '*' 이면 제한 없음.
 - 한계: 글자 규칙이라 스크립트를 써서 실행하거나 python subprocess 로 돌리는 우회는 못 막는다. 보조 장치이고,
   최종 방어는 '위험 허용'을 함부로 켜지 않는 것 + 프로젝트 .claude/settings.json 의 deny 규칙이다.
 """
@@ -60,6 +62,67 @@ def expand_glob(g):
     return out
 
 
+def env_dir(*names):
+    for n in names:
+        v = os.environ.get(n)
+        if v:
+            return v
+    return ''
+
+
+def limit_dirs():
+    """작업 폴더 제한 목록(None = 제한 없음). 값이 깨져 있으면 예외 → main 이 막는다."""
+    v = os.environ.get('RC_DIRS')
+    if v is None or v.strip() == '*':
+        return None
+    dirs = json.loads(v)
+    if not isinstance(dirs, list):
+        raise ValueError('RC_DIRS')
+    return [d for d in dirs if isinstance(d, str) and os.path.isabs(d)]
+
+
+def allowed(full, dirs):
+    """들어가도 되는 곳: 고른 폴더 + 임시 폴더 + 계획 파일."""
+    return any(inside(full, z) for z in list(dirs) + [TEMP, PLANS] if z)
+
+
+# 작업 폴더 제한 중에 쓸 수 있는 도구(모르는 도구·MCP·LSP·Skill 은 경로를 확인할 수 없으므로 막는다)
+LIMIT_TOOLS = {'Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Glob', 'Grep', 'LS', 'WebFetch', 'WebSearch',
+               'Agent', 'Task', 'TodoWrite', 'ToolSearch', 'ExitPlanMode', 'EnterPlanMode',
+               'Bash', 'PowerShell', 'BashOutput', 'KillShell', 'TaskOutput', 'TaskStop'}
+SHELL_TOOLS = {'Bash', 'PowerShell', 'BashOutput', 'KillShell', 'Monitor'}
+
+
+def check_dirs(tool, inp, cwd, dirs):
+    """작업 폴더 제한 위반(없으면 None). 파일 도구는 경로로, 명령은 실행 위치(cwd)로 본다."""
+    def full(p):
+        return os.path.abspath(os.path.join(cwd, p))
+    if tool in SHELL_TOOLS and os.environ.get('RC_SHELL') == '0':
+        return '명령 실행 꺼짐', tool   # 사이트 설정에서 명령 실행을 끈 요청
+    if tool not in LIMIT_TOOLS:
+        return '허용 안 된 도구', tool
+    if tool in ('Bash', 'PowerShell'):
+        # 다리가 Claude 를 고른 폴더에서 켜고(--add-dir), Claude Code 가 셸 위치를 그 폴더들 안으로 되돌린다. 여기선 한 번 더 확인
+        return None if allowed(cwd, dirs) else ('허용 안 된 폴더', cwd)
+    paths = [inp.get(k) for k in ('file_path', 'notebook_path', 'path') if isinstance(inp.get(k), str) and inp.get(k)]
+    if tool in ('Glob', 'Grep') and not paths:
+        paths = [cwd]   # 경로를 안 주면 지금 위치에서 찾음
+    for p in paths:
+        # ~(홈)·%변수%·$변수 는 도구가 따로 펼칠 수 있어 경로를 확정할 수 없으므로 막는다
+        if p.lstrip().startswith('~') or '%' in p or '$' in p or not allowed(full(p), dirs):
+            return '허용 안 된 폴더', p
+    if tool == 'Glob':   # 패턴에 위 폴더(..)·중괄호·홈·루트·다른 드라이브가 들어가면 경로를 벗어날 수 있음
+        pat = str(inp.get('pattern') or '')
+        if '..' in pat or any(c in pat for c in '{}~%$') or pat.startswith(('/', '\\')) or os.path.isabs(pat) or re.match(r'[A-Za-z]:', pat):
+            return '허용 안 된 폴더', pat
+    if tool in ('Write', 'Edit', 'MultiEdit', 'NotebookEdit'):   # 다음 실행에 명령·훅·MCP 로 쓰일 수 있는 설정은 고른 폴더 안이라도 못 고침
+        for p in paths:
+            parts = [x.lower() for x in re.split(r'[\\/]+', full(p))]
+            if '.claude' in parts or parts[-1] in ('.mcp.json', '.claude.json'):
+                return '보호 장치 고치기', p
+    return None
+
+
 def check(tool, inp):
     """막을 이유(없으면 None)."""
     if tool in ('Bash', 'PowerShell'):
@@ -97,31 +160,47 @@ def check(tool, inp):
     return None
 
 
+def log_hit(why, what, ok):
+    log = os.environ.get('RC_GUARD_LOG')
+    if log:
+        try:
+            with open(log, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'why': why, 'what': ' '.join(str(what).split())[:200], 'allowed': ok}, ensure_ascii=False) + '\n')
+        except Exception:
+            pass
+
+
 def main():
-    allowed = os.environ.get('RC_ALLOW_DANGER') == '1'
+    danger_ok = os.environ.get('RC_ALLOW_DANGER') == '1'
     try:
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
     try:
+        dirs = None
+        dirs = limit_dirs()
         data = json.loads(sys.stdin.buffer.read().decode('utf-8'))
-        hit = check(str(data.get('tool_name') or ''), data.get('tool_input') or {})
-    except Exception as e:   # 고장 나면 막는다(허용한 요청만 통과)
-        if allowed:
+        tool, inp = str(data.get('tool_name') or ''), data.get('tool_input') or {}
+        cwd = str(data.get('cwd') or os.getcwd())
+        hard = check_dirs(tool, inp, cwd, dirs) if dirs is not None else None
+        hit = None if hard else check(tool, inp)
+    except Exception as e:   # 고장 나면 막는다(위험 허용한 요청이라도 작업 폴더 제한이 걸려 있으면 막음)
+        if danger_ok and os.environ.get('RC_DIRS', '*').strip() == '*':
             return 0
-        sys.stderr.write(f'원격 요청 보호 장치가 이 도구를 확인하지 못해 막았습니다({type(e).__name__}).\n')
+        sys.stderr.write(f'[rc_guard] 원격 요청 보호 장치가 이 도구를 확인하지 못해 막았습니다({type(e).__name__}).\n')
+        return 2
+    if hard:   # 작업 폴더 제한은 '위험 허용'으로도 풀리지 않는다
+        why, what = hard
+        log_hit(why, what, False)
+        names = ', '.join(os.path.basename(d.rstrip('\\/')) or d for d in dirs) or '없음'
+        sys.stderr.write(f'[rc_guard] 원격 요청은 사이트 설정의 "작업 폴더"에서 고른 폴더만 쓸 수 있습니다: {str(what)[:120]}\n'
+                         f'허용된 폴더: {names}. 다른 폴더가 필요하면 사용자에게 원격 Claude 사이트의 설정 > 작업 폴더에서 추가해 달라고 안내하세요. 다른 방법으로 우회하지 마세요.\n')
         return 2
     if not hit:
         return 0
     why, what = hit
-    log = os.environ.get('RC_GUARD_LOG')
-    if log:
-        try:
-            with open(log, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'why': why, 'what': ' '.join(str(what).split())[:200], 'allowed': allowed}, ensure_ascii=False) + '\n')
-        except Exception:
-            pass
-    if allowed:
+    log_hit(why, what, danger_ok)
+    if danger_ok:
         return 0
     sys.stderr.write(f'[rc_guard] 원격 요청에서는 위험한 작업({why})을 막아 두었습니다: {str(what)[:120]}\n'
                      '필요하면 사용자에게 원격 Claude 사이트에서 "위험 명령 허용"을 켜고 다시 보내 달라고 안내하세요. 다른 방법으로 우회하지 마세요.\n')

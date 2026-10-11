@@ -502,6 +502,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요." };
   var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "원격 Claude 사용을 허락받은 계정만 쓸 수 있어요. 관리자에게 요청하세요.",
     need_setup: "먼저 설정에서 보안 코드를 정해 주세요. 정하기 전에는 PC로 실행하지 않아요.",
+    rc_dir_unknown: "PC에 없는 폴더가 들어 있어요. 설정을 다시 열어 골라 주세요.",
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
     rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
     rc_not_active: "이미 끝난 요청이에요.", bad_code: "보안 코드가 맞지 않아요.", code_expired: "확인 시간이 지났어요. 처음부터 다시 로그인해 주세요.",
@@ -835,8 +836,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 설정: 보안 코드·로그인 유지·믿는 기기·보안 기록 ── */
   var EV = { login: "로그인", login_nocode: "로그인 (보안 코드 없음)", login_new_device: "새 기기 로그인 (보안 코드 확인)", login_fail: "로그인 실패", locked: "너무 많이 틀려 잠김",
     new_device: "새 기기·장소에서 로그인 시도", code_fail: "보안 코드 틀림", code_set: "보안 코드 정함", code_changed: "보안 코드 바꿈", code_change_fail: "보안 코드 바꾸기 실패",
-    trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
-  var EV_BAD = { bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
+    trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
+  var EV_BAD = { dirs_set: 1, bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
   function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
     var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {};
     d.textContent = ""; d.className = "dlg";
@@ -879,7 +880,54 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function pcText(pc) {
     if (!pc || (!pc.hasBridge && !pc.legacy)) return "아직 연결한 PC가 없어요.";
     if (!pc.seenAt) return "연결 코드를 만들었지만 아직 PC가 한 번도 연결되지 않았어요.";
-    return (pcOnline() ? "연결됨" : "꺼짐 · 마지막 " + ago(pc.seenAt)) + (pc.pc ? " · " + pc.pc : "") + (pc.dir ? " · " + pc.dir : "") + (pc.legacy ? " (서버 기본 다리)" : "");
+    return (pcOnline() ? "연결됨" : "꺼짐 · 마지막 " + ago(pc.seenAt)) + (pc.pc ? " · " + pc.pc : "") + (pc.dir ? " · " + pc.dir : "") + (pc.legacy ? " (서버 기본 다리)" : "") +
+      (pc.old ? " · ⚠ PC 다리가 옛 버전이라 요청을 실행하지 않아요. 다리 파일을 새로 받아 다시 켜 주세요" : "");
+  }
+  /* ── 작업 폴더: 원격 Claude 가 읽고 쓸 수 있는 폴더(PC 작업 폴더 바로 아래). 위험 허용으로도 밖은 못 건드림 ── */
+  function dirsText(dirs, shell) {
+    if (dirs && dirs[0] === "*") return "작업 폴더 전체 (제한 없음)";
+    return (dirs && dirs.length ? dirs.join(", ") : "고른 폴더 없음 · 파일은 못 건드리고 대화만 해요") + " · 명령 실행 " + (shell ? "켬" : "끔");
+  }
+  function openDirs(r) {
+    var have = (r.pc && r.pc.folders) || [], cur = r.dirs || [];
+    var d = $("dlg"), f = el("form"), ul = el("ul", "users"), boxes = {};
+    d.textContent = ""; d.className = "dlg wide";
+    var h = el("h2", null, "작업 폴더 고르기"); h.id = "dlgTitle"; f.appendChild(h);
+    f.appendChild(el("p", null, "원격 Claude는 고른 폴더 안에서만 파일을 읽고 고쳐요. 다른 폴더는 '위험 허용'을 켜도 막혀요." + (r.pc && r.pc.dir ? " (PC 작업 폴더: " + r.pc.dir + ")" : "")));
+    if (!have.length) f.appendChild(el("p", "warn-box", "PC가 아직 폴더 목록을 보내지 않았어요. PC 다리를 켜고 잠시 뒤 다시 열면 폴더가 보여요. 지금은 '전체'만 고를 수 있어요."));
+    function row(name, label, sub) {
+      var li = el("li"), who = el("label", "who2"), sw = el("input", "switch");
+      sw.type = "checkbox"; sw.setAttribute("role", "switch"); sw.setAttribute("aria-label", label);
+      who.appendChild(el("b", null, label)); if (sub) who.appendChild(el("span", null, sub));
+      li.appendChild(who); li.appendChild(sw); ul.appendChild(li); boxes[name] = sw; return sw;
+    }
+    var all = row("*", "전체 (제한 없음)", "작업 폴더 전체를 허용해요. 배포처럼 여러 폴더를 쓰는 일에 필요해요.");
+    var sh = row("!shell", "명령 실행 (빌드·테스트·git 등)", "⚠ 켜면 명령으로는 폴더 밖도 읽고 쓸 수 있어요(폴더 제한은 파일 도구에만 걸려요). 꼭 필요할 때만 켜세요. 폴더를 하나 이상 골라야 켤 수 있어요.");
+    have.forEach(function (n) { row(n, n); boxes[n].addEventListener("change", sync); });
+    function sync() {
+      have.forEach(function (n) { boxes[n].disabled = all.checked; });
+      var any = have.some(function (n) { return boxes[n].checked; });
+      sh.disabled = all.checked || !any; if (!any) sh.checked = false;
+    }
+    Object.keys(boxes).forEach(function (k) { boxes[k].checked = k === "!shell" ? !!r.shell : cur[0] === "*" ? k === "*" : cur.indexOf(k) >= 0; });
+    all.onchange = sync; sync(); f.appendChild(ul);
+    var btns = el("div", "dlg-btns"), no = el("button", "btn btn-ghost", "취소"), yes = el("button", "btn", "저장");
+    no.type = "button"; no.onclick = function () { d.close(); }; yes.type = "submit"; btns.appendChild(no); btns.appendChild(yes); f.appendChild(btns);
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var pick = all.checked ? ["*"] : have.filter(function (n) { return boxes[n].checked; });
+      askDirsCode(pick, !all.checked && sh.checked);   // 창을 닫지 않고 내용만 코드 입력으로 바꾼다(닫으면 늦게 오는 닫힘 이벤트가 새 창까지 닫음)
+    });
+    d.appendChild(f); d.showModal(); all.focus();
+  }
+  function askDirsCode(pick, shell) {
+      askCode("작업 폴더를 바꿀까요?", "바꾸면: " + dirsText(pick, shell) + ". 다음 요청부터 적용돼요. 보안 코드를 다시 넣어 주세요.", "바꾸기", pick[0] === "*" || shell).then(function (c) {
+        if (!c) return;
+        api({ action: "rcDirsSet", dirs: pick, shell: !!shell, code: c, device: deviceId(), ua: navigator.userAgent }).then(function (x) {
+          if (!x.ok) { toast(errMsg(x)); if (x.error === "need_setup") setupCode(false); return; }
+          toast("작업 폴더: " + dirsText(x.dirs, x.shell)); openSettings();
+        });
+      });
   }
   function showBridgeKey(key) {
     var d = $("dlg"), f = el("form");
@@ -967,6 +1015,10 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       pcAct.onclick = function () { newBridge(r.pc && r.pc.hasBridge); }; b0.appendChild(pcAct);
       if (r.pc && r.pc.hasBridge) { var pcDel = el("button", "btn-sm"); pcDel.type = "button"; pcDel.style.cssText = "margin-left:6px;color:var(--red)"; pcDel.appendChild(ic("x")); pcDel.appendChild(document.createTextNode("끊기")); pcDel.onclick = delBridge; b0.appendChild(pcDel); }
       r0.appendChild(b0); s0.appendChild(r0);
+      var sd = sec("작업 폴더"), rd = el("div", "set-row"), bd = el("button", "btn-sm");
+      rd.appendChild(el("p", null, dirsText(r.dirs, r.shell) + " · 원격 Claude가 손댈 수 있는 곳이에요(위험 허용으로도 밖은 못 건드려요)"));
+      bd.type = "button"; bd.appendChild(ic("folder")); bd.appendChild(document.createTextNode("고르기")); bd.onclick = function () { openDirs(r); };
+      rd.appendChild(bd); sd.appendChild(rd);
       if (r.isAdmin) {
         var su = sec("사용자 허용"), ru = el("div", "set-row"), bu = el("button", "btn-sm");
         ru.appendChild(el("p", null, "원격 Claude를 쓸 수 있는 계정을 고르세요. 각자 자기 PC를 연결해서 써요."));

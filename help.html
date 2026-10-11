@@ -136,6 +136,7 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <div class="tbl"><table>
 <tr><th>항목</th><th>하는 일</th></tr>
 <tr><td>내 PC 연결</td><td>연결 상태(연결됨 / 꺼짐 · 마지막 시각, PC 이름, 작업 폴더). <span class="b">새 코드</span>는 예전 코드를 바로 못 쓰게 하고 새로 연결, <span class="b">끊기</span>는 그 PC 가 더 이상 요청을 못 받게 합니다.</td></tr>
+<tr><td>작업 폴더</td><td>Claude 가 손댈 수 있는 폴더를 고릅니다(보안 코드 필요). 고른 폴더 밖은 <b>읽기도 막히고</b>, <span class="b">위험 허용</span>을 켜도 풀리지 않습니다. 처음에는 아무 폴더도 고르지 않은 상태라 파일은 못 건드리고 대화만 합니다. <b>명령 실행</b>(빌드·테스트·git 등)은 기본으로 꺼져 있고, 끄면 파일 읽기·고치기만 합니다. 켜면 명령 하나 안에서 폴더 밖으로 나가는 것까지는 막지 못하니 필요할 때만 켜세요. <b>전체</b>를 고르면 제한이 없어집니다(배포처럼 여러 폴더를 쓰는 일).</td></tr>
 <tr><td>보안 코드</td><td>6자리 코드를 정하거나 바꿉니다. 바꿀 때는 비밀번호와 지금 코드가 필요합니다.</td></tr>
 <tr><td>로그인 유지</td><td>이 기기에서 로그인을 오래 유지할지 정합니다.</td></tr>
 <tr><td>믿는 기기</td><td>보안 코드로 확인한 기기 수와 지금 로그인된 곳 수. <span class="b">모두 해제</span>를 누르면 이 기기를 뺀 모든 기기가 로그아웃되고, 다음에 다시 코드를 물어봅니다.</td></tr>
@@ -154,6 +155,8 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <div class="tbl"><table>
 <tr><th>상황</th><th>해결</th></tr>
 <tr><td>계속 "대기"에서 안 넘어가요</td><td>맨 위가 PC 꺼짐이면 PC 를 켜세요. 켜지면 쌓인 요청부터 실행합니다. "1분 넘게 기다리는 요청" 띠가 계속 뜨면 PC 의 다리 창이 닫힌 것입니다. 그 PC 에서 다리를 다시 실행하거나 <code>--install</code> 로 자동 실행을 켜 두세요. 아직 연결한 PC 가 없다면 먼저 <a href="#pc">내 PC 연결하기</a>를 하세요.</td></tr>
+<tr><td>"허용 안 된 폴더"로 막혔어요</td><td>설정 → <b>작업 폴더</b>에서 그 폴더를 고르세요. 명령이 안 된다고 하면 같은 곳에서 <b>명령 실행</b>을 켜세요. 폴더를 바꾸면 그 대화는 이전 기억 없이 새로 시작할 수 있습니다.</td></tr>
+<tr><td>"PC 다리가 옛 버전"이라고 나와요</td><td>그 PC 에서 다리 파일(remote_claude.py, rc_guard.py)을 새로 받아 다시 켜세요(<a href="#pc">내 PC 연결하기</a>의 명령을 다시 실행).</td></tr>
 <tr><td>오류로 끝났어요</td><td>작업 기록을 펼쳐 마지막 줄을 봅니다. <span class="b">다시 쓰기</span>로 고쳐 보내세요.</td></tr>
 <tr><td>너무 오래 걸려요</td><td><span class="b">중지</span> → <span class="b">멈추기</span>. 일을 작게 나눠 다시 시키세요.</td></tr>
 <tr><td>"보안 코드가 맞지 않아요"</td><td>남은 기회 안에 다시 넣으세요. 시간이 지나면 <span class="b">처음부터 다시 로그인</span>.</td></tr>
