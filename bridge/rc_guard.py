@@ -15,7 +15,7 @@
 - 한계: 글자 규칙이라 스크립트를 써서 실행하거나 python subprocess 로 돌리는 우회는 못 막는다. 보조 장치이고,
   최종 방어는 '위험 허용'을 함부로 켜지 않는 것 + 프로젝트 .claude/settings.json 의 deny 규칙이다.
 """
-import fnmatch, json, os, re, sys
+import fnmatch, json, os, re, sys, urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = (os.environ.get('RC_ROOT') or os.path.dirname(HERE)).lower()   # 다리가 작업 폴더를 넘겨줌(다른 사람 PC)
@@ -31,8 +31,9 @@ CMD_RULES = [   # (이유, 정규식) — 명령 글자 전체에서 대소문�
     ('배포·푸시', r'\bgit(\.exe)?(\s+-[Cc]\s+\S+|\s+--?[\w-]+(=\S*)?)*\s+push\b|deploy-(site|cf|gas)\.ps1|\brelease\.ps1|\bwrangler\b[^\n]*\b(deploy|publish|secret|delete|rollback)\b|\bclasp\s+(push|deploy|undeploy)|\bnpm\s+publish|\bgh\s+(repo\s+delete|release\s+(create|delete|upload|edit)|pr\s+merge)'),
     ('git 기록 지우기', r'\bgit\s+(reset\s+--hard|clean\s+-\w*f|branch\s+(?-i:-D)|checkout\s+--\s|restore\s+--source)'),
     ('원격 DB 쓰기', r'\bwrangler\b(?=[^\n]*--remote)(?=[^\n]*\bd1\b)(?=[^\n]*(\b(delete|drop|update|insert|alter|replace|create)\b|--file))'),
-    ('폴더 통째 삭제', r'\b(Remove-Item|ri|rm|del|erase|rd|rmdir)\b[^\n;|&]*\s-r(e(c(u(r(se?)?)?)?)?)?(\s|$|:)|\brm\s+-\w*r|\b(rd|rmdir)\s+/s|\bdel\s+(/\w\s+)*/[sq]|\bformat\s+[a-z]:|\bshutil\.rmtree|\bClear-RecycleBin'),
-    ('시스템 설정 바꾸기', r'\b(shutdown|Stop-Computer|Restart-Computer)\b|\breg(\.exe)?\s+(delete|add|import)\b|Set-ExecutionPolicy|\bschtasks\b[^\n]*/(create|delete|change)|\bsc(\.exe)?\s+(delete|config|stop)\b|\bnet\s+(user|localgroup)\b|\btakeown\b|\bicacls\b|\bSet-MpPreference\b|\bnetsh\b'),
+    ('폴더 통째 삭제', r'\b(Remove-Item|ri|rm|del|erase|rd|rmdir)\b[^\n;|&]*\s-r(e(c(u(r(se?)?)?)?)?)?(?!\w)|\brm\s+-\w*r|\b(rd|rmdir)\s+/s|\bdel\s+(/\w\s+)*/[sq]|\bformat\s+[a-z]:|\bshutil\.rmtree|\bClear-RecycleBin'),
+    ('폴더 통째 삭제', r'-r(e(c(u(r(se?)?)?)?)?)?(?!\w)[^\n;&]*\|\s*(Remove-Item|ri|rm|del|erase|rd|rmdir)\b'),   # gci x -Recurse | Remove-Item (교차 검토 2026-10-12)
+    ('시스템 설정 바꾸기',r'\b(shutdown|Stop-Computer|Restart-Computer)\b|\breg(\.exe)?\s+(delete|add|import)\b|Set-ExecutionPolicy|\bschtasks\b[^\n]*/(create|delete|change)|\bsc(\.exe)?\s+(delete|config|stop)\b|\bnet\s+(user|localgroup)\b|\btakeown\b|\bicacls\b|\bSet-MpPreference\b|\bnetsh\b'),
     ('내려받아 바로 실행', r'\b(iwr|irm|Invoke-WebRequest|Invoke-RestMethod|curl|wget)\b[^\n|]*\|\s*(iex|Invoke-Expression|sh|bash|python|pwsh|powershell)\b|\bInvoke-Expression\b|\biex\b'),
     ('폴더 통째 삭제', r'\brm\b[^\n;|&]*\s(-\w*r\w*|--recursive)\b|\bfind\b[^\n;|&]*\s-delete\b|\brobocopy\b[^\n;|&]*\s/(mir|purge)\b'),
     ('원격 저장소 바꾸기', r'\bgit(\.exe)?\b[^\n;|&]*\bremote\s+(set-url|add|remove|rm)\b|\bgh\s+api\b[^\n]*(-X\s*|--method[\s=]+)(DELETE|PATCH|PUT)\b'),
@@ -50,9 +51,127 @@ WORKER_RULES = [   # 학습 도우미 워커만: 절차에 없는 것(네트워�
     ('워커 코드 고치기', r'(>|\b(Set-Content|Add-Content|Out-File|Copy-Item|Move-Item|cp|mv|copy|move|tee|sed\s+-i)\b)[^\n;|&]*(\b(tools|worker)[\\/]|\.(py|ps1|bat|cmd|vbs)\b)'),
 ]
 # 워커가 고치면 안 되는 곳: 다음 실행에 그대로 실행·지시로 쓰이는 코드와 절차서(사진 속 인젝션이 다음 실행까지 남지 않게)
-WORKER_CODE = re.compile(r'[\\/]study-helper[\\/](tools|worker)([\\/]|$)|\.(py|ps1|bat|cmd|vbs|lnk|js)$|[\\/]claude(\.local)?\.md$', re.I)
+WORKER_CODE = re.compile(r'[\\/]study-helper[\\/](tools|worker)([\\/]|$)|\.(py[cwoz]?|pth|ps1|psm1|psd1|bat|cmd|vbs|vbe|jse?|mjs|cjs|wsf|hta|sh|lnk|exe|dll|com|scr|msi|reg)$'
+                         r'|[\\/]__pycache__([\\/]|$)|[\\/]claude(\.local)?\.md$|[\\/]local_llm\.json$', re.I)
+
+# 워커 명령 허용 목록(2026-10-12): 금지 목록은 python -c·임시 스크립트로 돌아갈 수 있어서, 워커(Bash)는 아래 모양만 통과시킨다.
+# 절차(PROMPT.md)에 필요한 명령이 정해져 있으므로 가능하다. 상태 확인·사용량 기록·조각 자르기도 정해진 도구로 바꿨다.
+# 교차 검토(2026-10-12)로 보완: 도구별 인자 모양(sync_server key 가 워커 키를 출력, 이름 자리에 절대 경로), grep 은 낱말 하나만,
+# cd 는 맨 앞에서 && 로만(파이프 안·실패한 cd 는 위치가 안 바뀌는데 훅은 바뀐 줄 알았음).
+NAME = r'[\w가-힣ㄱ-ㅎㅏ-ㅣ][\w가-힣ㄱ-ㅎㅏ-ㅣ.\-]*'           # 문제지 이름·학생 id·작업 id(경로·점·- 로 시작 금지)
+REL = NAME + r'(/' + NAME + r')*'                            # study-helper 안 상대 경로(.. 은 아래에서 따로 막음)
+KIND = r'(page-analyst|handwriting-transcriber|blind-solver|report-writer|item-checker|question-writer|note-writer|arbiter)'
+USE = KIND + ' ' + REL + r' \d{1,9} \d{1,6}'
+WORKER_ARGS = {   # 도구 이름 → 인자 전체(공백으로 이음)가 맞아야 하는 모양
+    'sync_server': r'pull|push|reports-push|jobs-push|usage-push|(reports-pull|jobs-pull)( \d{1,2})?',
+    'prep_pages': NAME,
+    'build_report': NAME + r'( --(blind|mismatch|apply-arbiter))?',
+    'build_quiz': NAME + r'( --(blind|mismatch|apply-arbiter))?',
+    'build_note': NAME,
+    'local_report': r'--all',
+    'worker_status': r'(wait ' + REL + r'( \d{1,4})?)?',
+    'usage_log': r'없음|' + USE + r'( ' + USE + r')*',
+    'crop_questions': NAME,
+}
+WEB_URL = re.compile(r'https://([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+(go|hs|ms|es|sc)\.kr(/[A-Za-z0-9._~%!$&\'()*+,;=:@/?#-]*)?', re.I)   # 교과서 검색: 학교알리미·교육청·학교 홈페이지
+
+
 # 워커가 study-helper 밖에서 읽어도 되는 파일(오답노트 디자인 규칙)
 WORKER_READ_OK = [os.path.join(ROOT, '.claude', '웹사이트_제작_통합_프롬프트.md')]
+
+
+def bash_path(p, cwd):
+    """Git Bash 경로(/d/AI_HEO/x, 상대 경로) → 절대 경로."""
+    p = re.sub(r'^/([a-zA-Z])(?=/|$)', r'\1:', p)
+    return os.path.abspath(os.path.join(cwd, p))
+
+
+def worker_cmd(cmd, cwd):
+    """워커 Bash 명령이 허용 목록 밖이면 이유, 안이면 None."""
+    import shlex
+    sh = os.path.join(ROOT, 'study-helper')
+    s = cmd.replace('$?', 'RC')   # 'echo rc=$?' 만 허용
+    s = re.sub(r'(?<!\S)(2>&1|2>\s*/dev/null|>\s*/dev/null)(?!\S)', ' ', s)
+    bad = re.findall(r'[`$<>(){}\\#!~\[\]&]', s.replace('&&', ''))   # * ? 는 아래에서 ls 에만 허용
+    if bad:
+        return f'워커 명령에 쓸 수 없는 글자 {bad[0]!r}'
+    lx = shlex.shlex(s.replace('\r', ' ').replace('\n', ' ; '), posix=True, punctuation_chars=';&|')
+    lx.whitespace_split, lx.commenters = True, ''
+    try:
+        toks = list(lx)
+    except ValueError:
+        return '따옴표가 맞지 않음'
+    segs, cur, before = [], [], None   # (낱말들, 앞 연결, 뒤 연결)
+    for t in toks + [None]:
+        if t is None or t in (';', '&&', '||', '|'):
+            if not cur:
+                if t in (';', None):
+                    continue
+                return '빈 명령'
+            segs.append([cur, before, t]); cur, before = [], t
+        elif re.fullmatch(r'[;&|]+', t):
+            return f'쓸 수 없는 연결 {t!r}'
+        else:
+            cur.append(t)
+    here = cwd
+    for i, (seg, before, after) in enumerate(segs):
+        if seg[0] == 'timeout' and len(seg) > 2 and seg[1].isdigit():
+            seg = seg[2:]
+        c, args = seg[0], seg[1:]
+        piped = before == '|'
+        globby = [a for a in seg if re.search(r'[*?]', a)]
+        if globby and c != 'ls':
+            return f'와일드카드는 ls 에서만: {globby[0]}'
+        if c == 'cd':
+            if i != 0 or after not in ('&&', None):
+                return 'cd 는 맨 앞에서 && 로만 이어 쓰세요(cd /d/AI_HEO/study-helper && …)'
+            if len(args) != 1 or not re.fullmatch(r'[\w가-힣.\-/:]+', args[0]) or '..' in args[0]:
+                return 'cd 는 study-helper 안 폴더 하나만'
+            here = bash_path(args[0], here)
+            if not inside(here, sh) or not os.path.isdir(here):
+                return f'study-helper 안의 있는 폴더로만 cd: {args[0]}'
+        elif c in ('python', 'python3', 'py'):
+            if not args or args[0].startswith('-'):
+                return 'python 은 tools/<정해진 도구>.py 만(옵션·-c·- 금지)'
+            script = bash_path(args[0], here)
+            name = os.path.splitext(os.path.basename(script))[0]
+            if os.path.normcase(script) != os.path.normcase(os.path.join(sh, 'tools', name + '.py')) or name not in WORKER_ARGS:
+                return f'허용 안 된 파이썬 스크립트: {args[0]}'
+            rest = ' '.join(args[1:])
+            if '..' in rest or not re.fullmatch(WORKER_ARGS[name], rest):
+                return f'{name} 에 허용 안 된 인자: {rest[:80]}'
+        elif c in ('ls', 'head', 'tail'):
+            k = 0
+            while k < len(args):
+                a = args[k]; k += 1
+                if c != 'ls' and a in ('-n', '-c') and k < len(args) and args[k].isdigit():
+                    k += 1; continue
+                if a.startswith('-'):
+                    if not (re.fullmatch(r'-[a-zA-Z1]+', a) if c == 'ls' else re.fullmatch(r'-\d+', a)):
+                        return f'{c} 옵션 {a}'
+                    continue
+                if piped:
+                    return f'파이프 뒤 {c} 에는 파일을 줄 수 없음'
+                full = bash_path(a, here)
+                if not re.fullmatch(r'[\w가-힣.\-/:*?]+', a) or '..' in a or ':' in os.path.splitdrive(full)[1] or not inside(re.split(r'[*?]', full)[0] or full, sh):
+                    return f'study-helper 밖 경로: {a}'
+                if SECRET_PATH.search(full) or glob_hits_secret(a, here):
+                    return f'비밀 파일: {a}'
+        elif c == 'grep':
+            words = [a for a in args if a not in ('-v', '-i', '-c')]
+            if not piped or len(words) != 1 or words[0].startswith('-') or not re.fullmatch(r'[\w가-힣.\-]+', words[0]):
+                return 'grep 은 파이프 뒤에서 | grep [-v] 낱말 하나만'
+        elif c in ('wc', 'sort'):
+            if not piped or any(a not in ('-l', '-r', '-n') for a in args):
+                return f'{c} 는 파이프 뒤에서 옵션(-l/-r/-n)만'
+        elif c in ('echo', 'pwd', 'true'):
+            pass
+        elif c == 'sleep':
+            if len(args) != 1 or not args[0].isdigit():
+                return 'sleep 초'
+        else:
+            return f'허용 안 된 명령: {c}'
+    return None
 
 
 def glob_hits_secret(cmd, cwd=''):
@@ -117,8 +236,8 @@ def limit_dirs():
 
 
 def allowed(full, dirs):
-    """들어가도 되는 곳: 고른 폴더 + 임시 폴더 + 계획 파일."""
-    return any(inside(full, z) for z in list(dirs) + [TEMP, PLANS] if z)
+    """들어가도 되는 곳: 고른 폴더 + 임시 폴더 + 계획 파일(워커는 계획 파일을 쓰지 않으므로 빼고, TEMP 는 다리가 워커 전용 하위 폴더로 줌)."""
+    return any(inside(full, z) for z in list(dirs) + [TEMP] + ([] if WORKER else [PLANS]) if z)
 
 
 # 작업 폴더 제한 중에 쓸 수 있는 도구(모르는 도구·MCP·LSP·Skill 은 경로를 확인할 수 없으므로 막는다)
@@ -146,8 +265,9 @@ def check_dirs(tool, inp, cwd, dirs):
     for p in paths:
         if WORKER and tool == 'Read' and any(os.path.normcase(full(p)) == os.path.normcase(x) for x in WORKER_READ_OK):
             continue   # 워커가 읽어도 되는 바깥 파일(디자인 규칙)
-        # ~(홈)·%변수%·$변수 는 도구가 따로 펼칠 수 있어 경로를 확정할 수 없으므로 막는다
-        if p.lstrip().startswith('~') or '%' in p or '$' in p or not allowed(full(p), dirs):
+        # ~(홈)·%변수%·$변수 는 도구가 따로 펼칠 수 있어 경로를 확정할 수 없으므로 막는다.
+        # 워커는 상대 경로도 막는다(훅 프로세스 위치와 도구 위치가 달라 판단이 어긋날 수 있음, 교차 검토 2026-10-12)
+        if p.lstrip().startswith('~') or '%' in p or '$' in p or (WORKER and not os.path.isabs(p)) or not allowed(full(p), dirs):
             return '허용 안 된 폴더', p
     if tool == 'Glob':   # 패턴에 위 폴더(..)·중괄호·홈·루트·다른 드라이브가 들어가면 경로를 벗어날 수 있음
         pat = str(inp.get('pattern') or '')
@@ -163,6 +283,20 @@ def check_dirs(tool, inp, cwd, dirs):
 
 def check(tool, inp, cwd=''):
     """막을 이유(없으면 None)."""
+    for k in ('file_path', 'notebook_path', 'path'):   # sync.json:stream 같은 대체 데이터 스트림은 이름 규칙($ 앵커)을 피함(기억 없는 검토 2026-10-12)
+        v = inp.get(k) if isinstance(inp, dict) else None
+        if isinstance(v, str) and ':' in os.path.splitdrive(v)[1]:
+            return '대체 데이터 스트림', v
+    if WORKER and tool == 'PowerShell':   # 워커는 Bash 하나로만(허용 목록을 한 문법으로 검사)
+        return '워커 명령 허용 목록', 'PowerShell 대신 Bash 를 쓰세요'
+    if WORKER and tool in ('WebFetch', 'WebSearch'):   # 교과서 검색 작업이 있을 때(다리가 RC_WEB=1)만, 정해진 곳만
+        if os.environ.get('RC_WEB') != '1':
+            return '웹 사용', '교과서 검색(school) 작업이 없는 실행'
+        if tool == 'WebFetch':   # 주소 해석기마다 다르게 읽는 모양(\, @ 앞 사용자 정보, :포트)이 없게 글자 모양으로 직접 검사
+            url = str(inp.get('url') or '')
+            if not WEB_URL.fullmatch(url):
+                return '웹 사용', f'허용 안 된 주소 {url[:80]}(https://학교·교육청(.go.kr/.hs.kr/.ms.kr/.es.kr/.sc.kr)/… 만)'
+        return None
     if tool in ('Bash', 'PowerShell'):
         cmd = str(inp.get('command') or '')
         for why, rule in CMD_RULES + (WORKER_RULES if WORKER else REMOTE_RULES):
@@ -171,12 +305,19 @@ def check(tool, inp, cwd=''):
                 return why, cmd
         if WORKER and glob_hits_secret(cmd, cwd):   # cd study-helper 뒤의 cat sy*, Get-Content *.json 등
             return '비밀 값 읽기', cmd
+        if WORKER:
+            why = worker_cmd(cmd, cwd or ROOT)
+            if why:
+                return '워커 명령 허용 목록', why + ' | ' + cmd
         return None
     if tool == 'Glob':   # 파일 이름만 보여 줌(내용 없음)
         return None
-    if tool == 'Grep' and WORKER:   # 워커: 찾는 범위(경로를 안 주면 지금 위치)에 sync.json 이 들어 있으면 막는다
+    if tool == 'Grep' and WORKER:   # 워커: 찾는 범위(경로를 안 주면 지금 위치)에 sync.json 이 들어 있거나 glob 이 비밀 파일 이름에 맞으면 막는다
         root = os.path.abspath(os.path.join(cwd or os.getcwd(), str(inp.get('path') or '.'))).lower()
-        if inside(SH_SYNC, root) or SECRET_PATH.search(root):
+        g = str(inp.get('glob') or '').lower()
+        if g and any(fnmatch.fnmatch(n, pat) for pat in expand_glob(g) for n in ('sync.json', 'remote_claude.json', '.env', '.dev.vars', 'bridge.json')):
+            return '비밀 값 읽기', g
+        if inside(SH_SYNC, root) or SECRET_PATH.search(root) or any(inside(root, d) or inside(d, root) for d in SECRET_DIRS if d != os.path.join(ROOT, 'study-helper').lower()):
             return '비밀 값 읽기', inp.get('path') or cwd
         return None
     if tool == 'Grep':   # 폴더를 통째로 찾으면 비밀 파일 내용이 나올 수 있음
@@ -194,7 +335,7 @@ def check(tool, inp, cwd=''):
     path = str(inp.get('file_path') or inp.get('notebook_path') or inp.get('path') or '')
     if not path:
         return None
-    full = os.path.abspath(path).lower()
+    full = os.path.abspath(os.path.join(cwd or os.getcwd(), path)).lower()   # 상대 경로는 도구 위치 기준(훅 프로세스 위치 아님)
     if SECRET_PATH.search(full):
         return '비밀 값 읽기', path
     if tool in ('Write', 'Edit', 'MultiEdit', 'NotebookEdit'):
