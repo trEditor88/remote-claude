@@ -24,7 +24,12 @@ import base64, glob, json, os, queue, shutil, socket, subprocess, sys, threading
 #      python remote_claude.py --key <연결 코드> --dir <작업 폴더>   (처음 한 번. 옆의 remote_claude.json 에 저장)
 #      python remote_claude.py --install                            (로그인하면 자동 실행 + 지금 켜기)
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_API = 'https://exam-api.dawn-sea-4052.workers.dev'
+try:   # 구독 사용량 한도에 걸리면 API 키로 다시 실행(이 PC 에만 있는 파일. 다른 사람 PC 에는 없으면 그냥 안 씀)
+    sys.path.insert(0, HERE)
+    import api_fallback as AF
+except Exception:
+    AF = None
+DEFAULT_API ='https://exam-api.dawn-sea-4052.workers.dev'
 CONF = os.path.join(HERE, 'remote_claude.json')
 LEGACY = os.path.join(os.path.dirname(HERE), 'study-helper', 'sync.json')
 
@@ -249,6 +254,37 @@ def guard_works():
 
 
 def run(job, fresh=False):
+    """요청 실행. 구독 사용량 한도에 걸렸으면 저장된 API 키로 한 번 더(하루 상한 안에서)."""
+    res = _run(job, fresh)
+    res.pop('costUsd', None)
+    # 오류로 끝났고 그 메시지가 한도 안내일 때만(정상 답변 본문에 '사용량 한도'가 있어도 다시 돌지 않게)
+    if res.get('canceled') or not AF or not res.get('error') or not AF.is_limit(res['error']):
+        return res
+    who = '원격 ' + str(job.get('id') or '')
+    hid, key, left = AF.reserve(who)
+    if not hid:
+        print(time.strftime('%H:%M:%S'), '사용량 한도 · API 대체 안 됨:', left, flush=True)
+        return dict(res, error=(res.get('error') or '')[:200] + f' (API 대체 안 됨: {left})')
+    print(time.strftime('%H:%M:%S'), '사용량 한도 → API 키로 다시 실행', job.get('id'), f'(예산 ${left:.2f})', flush=True)
+    note = ('[구독 사용량 한도 때문에 같은 요청을 API 로 다시 실행합니다. 앞선 시도가 일부 작업을 했을 수 있으니 '
+            '파일 상태를 확인하고 이미 된 일은 되풀이하지 마세요.]\n')
+    try:
+        res2 = _run(dict(job, prompt=note + job['prompt']), fresh, api=(key, left))
+    except Exception:
+        AF.settle(hid, None, who)   # 비용을 모르면 잡아 둔 돈을 쓴 것으로
+        raise
+    cost = res2.pop('costUsd', None)
+    AF.settle(hid, cost, who)
+    first = (res.get('danger') or '').strip()
+    if first:   # 첫 시도에서 막은 기록도 사이트 경고에 남긴다
+        res2['danger'] = (first + '\n' + (res2.get('danger') or '')).strip()[:2000]
+    res2['progress'] = (f'구독 사용량 한도라 API 키로 다시 실행했어요(${float(cost or 0):.2f})\n' + (res2.get('progress') or ''))[:4000]
+    if res2.get('error'):
+        res2['error'] = ('구독 한도 → API 재실행 실패: ' + res2['error'])[:300]
+    return res2
+
+
+def _run(job, fresh=False, api=None):
     bad = guard_works()
     if bad:
         return {'result': '', 'error': ('PC 의 보호 장치가 동작하지 않아 실행하지 않았어요: ' + bad)[:300], 'sec': 0}
@@ -278,6 +314,10 @@ def run(job, fresh=False):
     env = dict(child_env(), RC_GUARD_LOG=guard_log, RC_ALLOW_DANGER='1' if job.get('allow') else '0', RC_ROOT=ROOT, RC_DIRS=rc_dirs, RC_SHELL='0' if no_shell else '1')
     if limited:
         env.update(TEMP=job_tmp, TMP=job_tmp)
+    if api:   # API 키로 실행(apiKeyHelper, 키는 환경변수에 안 넣음): 그날 남은 예산만큼만 쓰게 묶는다
+        env = AF.api_env(env)
+        cmd[cmd.index('--settings') + 1] = AF.with_key(guard_settings(), console_python())
+        cmd += ['--max-budget-usd', f'{api[1]:.2f}']
     guard_seen, danger = 0, []
     if job.get('model') in ('sonnet', 'opus', 'fable', 'haiku'):
         cmd += ['--model', job['model']]
@@ -360,7 +400,8 @@ def run(job, fresh=False):
     shutil.rmtree(job_tmp, ignore_errors=True)
     skipped = f'… 앞의 {len(log) - 40}단계 생략\n' if len(log) > 40 else ''
     out = {'sessionId': final.get('session_id') or st['session'], 'sec': sec, 'progress': (skipped + '\n'.join(log[-40:]))[:4000],
-           'usedModel': st['model'], 'turns': final.get('num_turns') or 0, 'danger': '\n'.join(danger)[:2000]}
+           'usedModel': st['model'], 'turns': final.get('num_turns') or 0, 'danger': '\n'.join(danger)[:2000],
+           'costUsd': final.get('total_cost_usd') if final else None}   # run() 이 빼고 보냄(API 로 쓴 돈 정산용, 모르면 None)
     if canceled:
         return dict(out, result='', error='', canceled=True)
     if timed_out:
@@ -369,20 +410,20 @@ def run(job, fresh=False):
         msg = (b''.join(err).decode('utf-8', 'replace').strip() or f'결과 없이 끝났습니다(종료 코드 {p.returncode}).')
         # 작업 폴더를 바꾸면 Claude 세션이 다른 폴더에 있어 이어 가지 못함 → 새 세션으로 한 번 다시
         if job.get('sessionId') and not fresh and 'No conversation found' in msg:
-            return run_fresh(job)
+            return run_fresh(job, api)
         return dict(out, result=msg[:60000], error=msg[:300])
     result = str(final.get('result') or '')
     if job.get('sessionId') and not fresh and final.get('is_error') and 'No conversation found' in (result + ' '.join(map(str, final.get('errors') or []))):
-        return run_fresh(job)
+        return run_fresh(job, api)
     sub = final.get('subtype')
     is_err = bool(final.get('is_error')) or sub not in (None, 'success')
     why = {'error_max_turns': '150턴 안에 끝내지 못했습니다. "이어서 해"로 계속하거나 요청을 나눠서 보내 주세요.'}.get(sub, str(sub))
     return dict(out, result=result[:60000] or (why if is_err else ''), error=(result[:300] or why) if is_err else '')
 
 
-def run_fresh(job):
+def run_fresh(job, api=None):
     """작업 폴더가 바뀌면 Claude 세션이 다른 폴더에 있어 이어 가지 못함 → 새 세션으로 한 번만 다시."""
-    return run(dict(job, prompt='[작업 폴더 설정이 바뀌어 이전 대화 내용 없이 새로 시작합니다]\n' + job['prompt']), fresh=True)
+    return _run(dict(job, prompt='[작업 폴더 설정이 바뀌어 이전 대화 내용 없이 새로 시작합니다]\n' + job['prompt']), fresh=True, api=api)
 
 
 PENDING = os.path.join(INBOX, 'pending-done')   # 못 보낸 결과(워커 키는 빼고 저장)
