@@ -74,6 +74,54 @@ INBOX = os.path.join(ROOT, 'remote-claude-inbox')
 EXT = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'}
 POLL_S = 5
 IDLE_POLL_S = 15
+MAX_PAR = 3   # 동시에 실행할 요청 수(다른 대화끼리만 겹침. 같은 대화는 서버가 차례로 넘김)
+DRAIN = os.path.join(HERE, 'remote_claude.drain')   # 이 파일이 있으면 새 요청을 받지 않고, 실행 중인 요청이 다 끝나면 다리를 끈다(재시작용)
+_dir_cv, _dir_busy = threading.Condition(), []   # 지금 '고치는' 요청들이 쓰는 폴더 묶음
+WAITING = set()   # 폴더가 비길 기다리는 요청 id
+
+
+def dir_claim(job):
+    """고치는 요청(읽기만·앱으로 보내기 제외)의 폴더 묶음. '*' 는 전체(모든 폴더와 겹침), 비면 대화만(안 겹침)."""
+    if job.get('mode') in ('plan', 'open'):
+        return set()
+    d = job.get('dirs')
+    return {'*'} if d == ['*'] else {n for n in (d if isinstance(d, list) else []) if isinstance(n, str)}
+
+
+def _overlap(a, b):
+    return bool(a and b and ('*' in a or '*' in b or a & b))
+
+
+def wait_dirs(job, claim):
+    """같은 폴더를 고치는 다른 요청이 끝날 때까지 기다린다(두 Claude 가 같은 파일·git 을 동시에 고치지 않게).
+    기다리는 동안 사이트에 표시하고 중지 요청을 확인한다. 중지되면 False."""
+    last = 0.0
+    with _dir_cv:
+        while any(_overlap(claim, c) for c in _dir_busy):
+            WAITING.add(job['id'])
+            if time.time() - last >= 10:
+                last = time.time()
+                _dir_cv.release()
+                try:
+                    pr = post({'action': 'rcProgress', 'key': KEY, 'id': job['id'], 'progress': '같은 폴더를 고치는 다른 요청이 끝나길 기다리는 중…'}, timeout=15)
+                except Exception:
+                    pr = {}
+                finally:
+                    _dir_cv.acquire()
+                if pr.get('cancel'):
+                    WAITING.discard(job['id'])
+                    return False
+            _dir_cv.wait(2)
+        WAITING.discard(job['id'])
+        _dir_busy.append(claim)
+    return True
+
+
+def dir_release(claim):
+    with _dir_cv:
+        if claim in _dir_busy:
+            _dir_busy.remove(claim)
+        _dir_cv.notify_all()
 PROGRESS_S = 3      # 작업 기록이 바뀌었으면 이 간격으로 보냄
 CHECK_S = 5         # 바뀐 게 없어도 이 간격으로 중지 요청 확인
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)   # pythonw 에서 claude 창이 뜨지 않게
@@ -537,7 +585,8 @@ FOLDERS_SENT = [None, 0.0]
 BOOT = False   # 계속 실행할 때만 True: 첫 확인에서 서버가 '실행 중'으로 남은 옛 요청(다리가 꺼지며 끊긴 것)을 정리한다
 
 
-def once():
+def take():
+    """서버에서 요청 하나 받기(없으면 None). 같은 대화의 요청은 서버가 앞 요청이 끝난 뒤에만 넘긴다."""
     global BOOT
     flush_pending()
     body = {'action': 'rcTake', 'key': KEY, 'boot': BOOT, 'dir': ROOT, 'pc': socket.gethostname()[:40], 'v': BRIDGE_V}
@@ -549,17 +598,40 @@ def once():
         FOLDERS_SENT[:] = [folders, time.time()]
     BOOT = False
     if not r.get('ok') or not r.get('job'):
-        return False
+        return None
     job = r['job']
     print(time.strftime('%Y-%m-%d %H:%M:%S'), '받음', job['id'], job.get('model') or '기본', job.get('mode') or '수정 허용',
           job['prompt'][:60].replace('\n', ' '), flush=True)
+    return job
+
+
+def handle(job):
+    """받은 요청 하나를 실행하고 결과를 보낸다(스레드마다 하나씩 동시에 돌 수 있음: 요청마다 임시 폴더·보호 장치 기록이 따로)."""
+    claim = dir_claim(job)
+    if claim and not wait_dirs(job, claim):
+        res, claim = {'result': '', 'error': '', 'sec': 0, 'canceled': True}, None
+    else:
+        try:
+            res = open_in_app(job) if job.get('mode') == 'open' else run(job)
+        except Exception as e:
+            res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
+        finally:
+            if claim:
+                dir_release(claim)
     try:
-        res = open_in_app(job) if job.get('mode') == 'open' else run(job)
-    except Exception as e:
-        res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
-    sent = send_done({'id': job['id'], **res})
+        sent = send_done({'id': job['id'], **res})
+    except Exception as e:   # 결과 파일도 못 남기면 기록만(스레드가 조용히 죽지 않게)
+        sent = False
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), '결과 보내기 오류', job['id'], e, flush=True)
     state = '중지됨' if res.get('canceled') else ('오류: ' + res['error'] if res.get('error') else '완료')
     print(time.strftime('%Y-%m-%d %H:%M:%S'), '보냄' if sent else '보내기 미룸', job['id'], f"{res.get('sec', 0)}초", state, flush=True)
+
+
+def once():
+    job = take()
+    if not job:
+        return False
+    handle(job)
     return True
 
 
@@ -599,12 +671,28 @@ if __name__ == '__main__':
         print('이 창을 닫으면 멈춰요. 자동으로 켜려면: python remote_claude.py --install', flush=True)
     BOOT = True
     idle_since = time.time()
+    busy = []   # 실행 중인 요청 스레드(최대 MAX_PAR 개 동시, 2026-10-14)
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), f'동시 실행 최대 {MAX_PAR}개', flush=True)
     while True:
+        busy = [t for t in busy if t.is_alive()]
+        if os.path.exists(DRAIN):   # 재시작 준비: 새 요청은 받지 않고, 다 끝나면 끈다
+            if not busy:
+                try:
+                    flush_pending()
+                finally:
+                    os.remove(DRAIN)
+                print(time.strftime('%Y-%m-%d %H:%M:%S'), '실행 중인 요청이 모두 끝나 다리를 끕니다(재시작)', flush=True)
+                sys.exit(0)
+            time.sleep(POLL_S); continue
         try:
-            if once():
-                idle_since = time.time()
-                continue
+            if len(busy) - len(WAITING) < MAX_PAR and len(busy) < MAX_PAR * 2:   # 폴더를 기다리는 요청은 자리를 차지하지 않음(모두 합쳐 6개까지)
+                job = take()
+                if job:
+                    th = threading.Thread(target=handle, args=(job,), daemon=True)
+                    th.start(); busy.append(th)
+                    idle_since = time.time()
+                    continue   # 바로 하나 더 받을 수 있는지 확인
         except Exception as e:
             print(time.strftime('%Y-%m-%d %H:%M:%S'), '오류', e, flush=True)
-        # 2분 넘게 할 일이 없으면 15초마다(서버 무료 한도 아끼기). 요청을 받으면 다시 5초
-        time.sleep(POLL_S if time.time() - idle_since < 120 else IDLE_POLL_S)
+        # 실행 중이거나 2분 안에 받았으면 5초, 아니면 15초마다(서버 무료 한도 아끼기)
+        time.sleep(POLL_S if busy or time.time() - idle_since < 120 else IDLE_POLL_S)
