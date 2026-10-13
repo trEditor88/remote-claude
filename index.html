@@ -242,13 +242,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .tips b{color:var(--ink);font-weight:600}
 
 /* 입력창: 화면 아래에 붙음 */
-.composer{position:sticky;bottom:0;z-index:10;background:var(--canvas);padding:8px 0 calc(14px + env(safe-area-inset-bottom))}
-.comp-box{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas);padding:10px 10px 10px 16px;transition:border-color .15s ease}
+.composer{position:sticky;bottom:0;z-index:10;background:var(--canvas);padding:6px 0 calc(8px + env(safe-area-inset-bottom))}
+.comp-box{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas);padding:6px 6px 6px 14px;transition:border-color .15s ease}
 .comp-box:focus-within{border-color:var(--blue)}
-.comp-box textarea{display:block;width:100%;border:0;background:transparent;padding:4px 0;min-height:30px;max-height:40vh;resize:none;font-size:1rem;line-height:1.6}
+.comp-box textarea{display:block;width:100%;border:0;background:transparent;padding:6px 0;min-height:36px;max-height:30vh;resize:none;font-size:1rem;line-height:1.6}
 .comp-box textarea:focus{outline:none}
-.comp-row{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:8px}
-.opts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.comp-main{display:flex;align-items:flex-end;gap:8px}
+.comp-main textarea{flex:1;min-width:0}
+.comp-row{display:flex;align-items:center;margin-top:4px;margin-left:-8px}
+.opts{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0;overflow-x:auto;scrollbar-width:none;padding:4px;margin:-3px}
+.opts::-webkit-scrollbar{display:none}
+.opts>*{flex-shrink:0}
+.tl{font-style:normal}
 .seg{display:inline-flex;background:var(--parchment);border-radius:var(--r-pill);padding:3px}
 .seg label{position:relative;display:block}
 .seg input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
@@ -259,7 +264,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .sel:focus{outline:none;border-color:var(--blue-focus)}
 .count{font-size:.8125rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .count.bad{color:var(--red)}
-.send{min-height:40px;padding:8px 18px;flex-shrink:0}
+.send{min-height:36px;padding:6px 16px;flex-shrink:0}
 .attach{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border);border-radius:50%;background:var(--canvas);color:var(--muted);cursor:pointer;flex-shrink:0}
 .attach:hover{color:var(--ink)}
 .attach:focus-visible{outline:2px solid var(--blue-focus);outline-offset:1px}
@@ -272,8 +277,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .me-imgs img{width:120px;height:120px;object-fit:cover;border-radius:12px;background:var(--parchment);cursor:zoom-in;border:1px solid var(--border)}
 .me-imgs img.big{width:auto;height:auto;max-width:100%;max-height:70vh;cursor:zoom-out}
 @media (pointer:coarse){.attach{width:40px;height:40px}}
-.comp-hint{font-size:.8125rem;color:var(--muted);margin:8px 6px 0}
-.comp-hint.bad{color:var(--red)}
+.comp-hint{font-size:.75rem;color:var(--muted);margin:4px 6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comp-hint.bad{color:var(--red);white-space:normal}
 @media (pointer:coarse){.seg span{line-height:30px}.sel{min-height:40px}}
 
 /* 보안·설정 */
@@ -281,6 +286,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .check input{width:20px;height:20px;accent-color:var(--blue);flex-shrink:0}
 .check small{display:block;color:var(--muted);font-size:.8125rem}
 .code-input{font-size:1.75rem;letter-spacing:.45em;text-align:center;font-variant-numeric:tabular-nums;padding:12px 8px 12px calc(8px + .45em)}
+.masked{-webkit-text-security:disc}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
+.pad button{min-height:48px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--ink);font-size:1.25rem;font-weight:600;font-variant-numeric:tabular-nums;touch-action:manipulation}
+.pad button:active{background:var(--hairline)}
+.pad .pad-fn{font-size:.875rem;color:var(--muted)}
 .step-title{font-size:1.125rem;font-weight:600;margin:0 0 6px}
 .step-text{color:var(--muted);font-size:.9375rem;margin:0 0 16px}
 .back{background:none;border:0;color:var(--blue);font-weight:600;padding:12px 0 0;min-height:44px}
@@ -289,7 +299,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .tool{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:6px 11px 6px 9px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--canvas);color:var(--muted);font-size:.8125rem;font-weight:600;white-space:nowrap}
 .tool:hover{color:var(--ink)}
 .tool[aria-pressed="true"]{color:var(--red);border-color:var(--red)}
-.comp-hint.danger{color:var(--red);font-weight:600}
+.comp-hint.danger{color:var(--red);font-weight:600;white-space:normal}
+/* 좁은 화면: 메뉴는 아이콘만, 보내기는 동그란 버튼 → 입력창이 화면의 15% 안팎 */
+@media (max-width:640px){.opts .tl,.send .tl{display:none}.opts{gap:4px}.seg span{padding:5px 9px}.tool{width:36px;padding:0;justify-content:center}.send{width:40px;min-height:40px;padding:0;border-radius:50%}.sel{max-width:108px;text-overflow:ellipsis;padding-right:26px}}
 .dlg.wide{width:min(94vw,560px)}
 .set-sec{border-top:1px solid var(--hairline);padding-top:14px;display:grid;gap:8px}
 .set-sec h3{font-size:1rem;font-weight:600;margin:0}
@@ -299,7 +311,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s ease}
 .switch:checked{background:var(--blue)}
 .switch:checked::after{transform:translateX(18px)}
-.switch:disabled{opacity:.35;cursor:not-allowed}
+.switch:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 .ev{list-style:none;margin:0;padding:0;display:grid;max-height:34vh;overflow:auto}
 .ev li{display:grid;gap:1px;padding:8px 2px;border-top:1px solid var(--hairline);font-size:.875rem}
 .ev li:first-child{border-top:0}
@@ -459,14 +471,17 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         <div class="comp-box">
           <label class="sr-only" for="prompt">요청</label>
           <div class="thumbs" id="thumbs" hidden></div>
-          <textarea id="prompt" rows="1" maxlength="4000" placeholder="Claude에게 시킬 일을 적어 주세요"></textarea>
+          <div class="comp-main">
+            <textarea id="prompt" rows="1" maxlength="4000" placeholder="Claude에게 시킬 일을 적어 주세요"></textarea>
+            <button class="btn send" id="send" type="submit" disabled aria-label="보내기"><i class="tl">보내기</i><svg class="ic ic-sm" aria-hidden="true"><use href="#i-send"/></svg></button>
+          </div>
           <div class="comp-row">
             <div class="opts">
               <button class="attach" id="attach" type="button" aria-label="사진 붙이기" title="사진 붙이기(붙여넣기·끌어놓기도 돼요)"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-image"/></svg></button>
               <input type="file" id="fileIn" accept="image/*" multiple hidden>
               <div class="seg" role="radiogroup" aria-label="권한">
-                <label><input type="radio" name="mode" value="" checked><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-edit"/></svg>수정 허용</span></label>
-                <label><input type="radio" name="mode" value="plan"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-eye"/></svg>읽기만</span></label>
+                <label><input type="radio" name="mode" value="" checked aria-label="수정 허용"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-edit"/></svg><i class="tl">수정 허용</i></span></label>
+                <label><input type="radio" name="mode" value="plan" aria-label="읽기만"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-eye"/></svg><i class="tl">읽기만</i></span></label>
               </div>
               <label class="sr-only" for="model">모델</label>
               <select class="sel" id="model">
@@ -475,11 +490,10 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
                 <option value="sonnet">Sonnet · 빠르게</option>
                 <option value="haiku">Haiku · 가장 빠르게</option>
               </select>
-              <button class="tool" id="quick" type="button" aria-haspopup="menu" aria-expanded="false" title="빠른 작업"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-bolt"/></svg>빠른 작업</button>
-              <button class="tool" id="danger" type="button" aria-pressed="false" title="이번 요청에서 위험 명령(배포·삭제 등) 허용"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-shield"/></svg>위험 허용</button>
+              <button class="tool" id="quick" type="button" aria-haspopup="menu" aria-expanded="false" title="빠른 작업" aria-label="빠른 작업"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-bolt"/></svg><i class="tl">빠른 작업</i></button>
+              <button class="tool" id="danger" type="button" aria-pressed="false" title="이번 요청에서 위험 명령(배포·삭제 등) 허용" aria-label="위험 허용"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-shield"/></svg><i class="tl">위험 허용</i></button>
               <span class="count" id="count" hidden></span>
             </div>
-            <button class="btn send" id="send" type="submit" disabled>보내기<svg class="ic ic-sm" aria-hidden="true"><use href="#i-send"/></svg></button>
           </div>
         </div>
         <p class="comp-hint" id="sendHint" aria-live="polite">새 대화로 보내요.</p>
@@ -540,6 +554,36 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 
   /* ── 작은 도구 ── */
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  // 보안 코드 칸: 숫자는 ●로 가리고, 숫자 자리를 섞은 화면 키패드로 넣는다(옆에서 손가락 위치로 코드를 알아채지 못하게).
+  // 휴대폰 기본 키보드는 띄우지 않고(inputmode=none), PC 키보드 입력은 그대로 된다. 칸 여러 개면 마지막으로 누른 칸에 들어간다
+  var MASK_CSS = !!(window.CSS && CSS.supports && CSS.supports("-webkit-text-security", "disc"));
+  function codePad(inputs) {
+    var pad = el("div", "pad"), cur = inputs[0];
+    inputs.forEach(function (inp) {
+      // password 칸이면 브라우저가 코드를 사이트 비밀번호로 저장·덮어쓰자고 할 수 있어 글자 칸 + 화면 가림(지원 안 하는 브라우저만 password)
+      if (MASK_CSS) { inp.type = "text"; inp.classList.add("masked"); } else inp.type = "password";
+      inp.inputMode = "none"; inp.maxLength = 6; inp.autocomplete = "off"; inp.spellcheck = false;
+      inp.addEventListener("focus", function () { cur = inp; });
+    });
+    function key(label, cls, fn, aria) {
+      var b = el("button", cls, label); b.type = "button"; if (aria) b.setAttribute("aria-label", aria);
+      b.addEventListener("pointerdown", function (e) { e.preventDefault(); });   // 칸의 포커스를 빼앗지 않게
+      b.addEventListener("click", function () { fn(); cur.dispatchEvent(new Event("input", { bubbles: true })); cur.focus(); });
+      return b;
+    }
+    pad.shuffle = function () {
+      var d = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], r = new Uint32Array(10); crypto.getRandomValues(r);
+      for (var i = 9; i > 0; i--) { var j = r[i] % (i + 1), t = d[i]; d[i] = d[j]; d[j] = t; }
+      pad.textContent = "";
+      d.forEach(function (n, i) {
+        if (i === 9) pad.appendChild(key("모두 지움", "pad-fn", function () { cur.value = ""; }));
+        pad.appendChild(key(String(n), null, function () { if (cur.value.length < 6) cur.value += n; }));
+      });
+      pad.appendChild(key("⌫", "pad-fn", function () { cur.value = cur.value.slice(0, -1); }, "한 글자 지움"));
+    };
+    pad.shuffle();
+    return pad;
+  }
   function ic(name, cls) { var s = document.createElementNS(SVGNS, "svg"), u = document.createElementNS(SVGNS, "use"); s.setAttribute("class", "ic" + (cls ? " " + cls : "")); s.setAttribute("aria-hidden", "true"); u.setAttribute("href", "#i-" + name); s.appendChild(u); return s; }
   function pad(n) { return String(n).padStart(2, "0"); }
   function serverNow() { return Date.now() + skew; }
@@ -635,9 +679,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       if (o.input) {
         if (o.input.label) f.appendChild(el("p", "dlg-lbl", o.input.label));
         inp = el("input", "input"); inp.type = "text"; inp.value = o.input.value || ""; inp.placeholder = o.input.placeholder || ""; inp.maxLength = o.input.max || 60;
-        if (o.input.numeric) { inp.className = "input code-input"; inp.inputMode = "numeric"; inp.maxLength = 6; inp.autocomplete = "one-time-code"; inp.addEventListener("input", function () { inp.value = inp.value.replace(/\D/g, "").slice(0, 6); }); }
         inp.setAttribute("aria-label", o.input.label || o.title); inp.autocomplete = "off";
         f.appendChild(inp);
+        if (o.input.numeric) { inp.className = "input code-input"; f.appendChild(codePad([inp])); inp.addEventListener("input", function () { inp.value = inp.value.replace(/\D/g, "").slice(0, 6); }); }
       }
       var btns = el("div", "dlg-btns"), no = el("button", "btn btn-ghost", o.cancel || "취소");
       no.type = "button"; no.onclick = function () { finish(null); }; btns.appendChild(no);
@@ -792,14 +836,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     });
   }
 
-  /* ── 빠른 작업: 한 번 눌러 새 대화로 실행(배포는 경고 확인 뒤) ── */
+  /* ── 빠른 작업: 한 번 눌러 새 대화로 실행(allow 가 있는 항목은 경고 확인 뒤) ── */
   var QUICK = [
     { i: "pulse", t: "상태 점검", p: ".\\check-project.ps1 -Online 을 실행하고 결과를 짧은 표로 요약해 줘. 문제가 있으면 원인과 고칠 방법도 알려 줘." },
     { i: "check", t: "서버 테스트", p: "python smoke-test.py exam 과 python smoke-test.py seat 를 실행하고 결과를 요약해 줘. 실패가 있으면 원인만 찾아 줘(고치지는 말고)." },
-    { i: "doc", t: "원격 Claude 기록 확인", p: "tools/remote_claude.log 의 최근 60줄을 읽고 오류나 이상한 점을 요약해 줘.", mode: "plan" },
-    "-",
-    { i: "send", t: "시험지 사이트 배포", p: "/deploy 절차대로 시험지 사이트(exam)를 배포하고 라이브 반영까지 확인해 줘.", allow: true },
-    { i: "send", t: "자리 뽑기 배포", p: "/deploy 절차대로 자리 뽑기 사이트(seat)를 배포하고 라이브 반영까지 확인해 줘.", allow: true }
+    { i: "doc", t: "원격 Claude 기록 확인", p: "tools/remote_claude.log 의 최근 60줄을 읽고 오류나 이상한 점을 요약해 줘.", mode: "plan" }
   ];
   function runQuick(q) {
     function go(code) {
@@ -822,7 +863,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     return d;
   }
   function saveAuth() { try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); (auth.keep ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(auth)); } catch (e) {} }
-  function loginStep(code) { $("loginForm").hidden = !!code; $("codeForm").hidden = !code; $("loginMsg").hidden = true; $("codeMsg").hidden = true; if (code) { $("code").value = ""; $("code").focus(); } }
+  function loginStep(code) { $("loginForm").hidden = !!code; $("codeForm").hidden = !code; $("loginMsg").hidden = true; $("codeMsg").hidden = true; if (code) { $("code").value = ""; loginPad.shuffle(); $("code").focus(); } }
+  var loginPad = codePad([$("code")]); $("code").parentNode.appendChild(loginPad);
   function finishLogin(r) {
     auth = { token: r.token, user: r.user, keep: !!r.keep }; saveAuth();
     $("upw").value = ""; challenge = ""; loginStep(false); show(true);
@@ -841,17 +883,18 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
   var EV_BAD = { dirs_set: 1, bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
   function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
-    var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {};
+    var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {}, nums = [];
     d.textContent = ""; d.className = "dlg";
     var h = el("h2", null, o.title); h.id = "dlgTitle"; f.appendChild(h);
     if (o.text) f.appendChild(el("p", null, o.text));
     o.fields.forEach(function (fd) {
       var lab = el("label"), inp = el("input", "input" + (fd.numeric ? " code-input" : ""));
       inp.type = fd.type || "text"; inp.required = true; inp.autocomplete = fd.auto || "off";
-      if (fd.numeric) { inp.inputMode = "numeric"; inp.maxLength = 6; inp.pattern = "[0-9]{6}"; }
+      if (fd.numeric) { inp.pattern = "[0-9]{6}"; nums.push(inp); inp.addEventListener("input", function () { inp.value = inp.value.replace(/\D/g, "").slice(0, 6); }); }
       lab.appendChild(document.createTextNode(fd.label)); lab.appendChild(inp); box.appendChild(lab); ins[fd.id] = inp;
     });
-    f.appendChild(box); msg.hidden = true; msg.setAttribute("role", "alert"); f.appendChild(msg);
+    f.appendChild(box); if (nums.length) f.appendChild(codePad(nums));   // 숫자 칸들은 키패드 하나를 같이 쓴다
+    msg.hidden = true; msg.setAttribute("role", "alert"); f.appendChild(msg);
     var btns = el("div", "dlg-btns"), no = el("button", "btn btn-ghost", "취소"), yes = el("button", "btn", o.ok || "저장");
     no.type = "button"; no.onclick = function () { d.close(); }; yes.type = "submit"; btns.appendChild(no); btns.appendChild(yes); f.appendChild(btns);
     f.addEventListener("submit", function (e) {
@@ -1318,6 +1361,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (pcSeenAt >= 0 && !pcOnline()) { h.textContent = "PC가 응답하지 않아요. 보내 두면 PC가 켜질 때 실행돼요."; return; }
     if (MODEL_HINT[opts.model]) { h.textContent = MODEL_HINT[opts.model]; return; }
     h.textContent = (t ? "이 대화에 이어서 보내요. Claude가 앞 내용을 기억해요." : pendingFolder ? "‘" + cut(pendingFolder, 16) + "’ 폴더에 새 대화로 보내요." : "새 대화로 보내요.") + (isTouch ? " Enter로 보내기" : " Enter로 보내기, Shift+Enter로 줄바꿈");
+    h.title = h.textContent;   // 좁은 화면에서 말줄임으로 잘려도 길게 누르거나 올려 보면 전체가 보이게
   }
   function render() {
     renderThreads(); renderPc(); renderHint();
@@ -1427,7 +1471,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (x.status !== "running") { go(); return; }
     dialog({ title: "실행 중인 작업을 멈출까요?", text: "이미 바뀐 파일은 되돌아가지 않아요.", ok: "멈추기", cancel: "계속 실행", danger: true }).then(function (v) { if (v) go(); });
   }
-  function grow() { var ta = $("prompt"); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.4)) + "px"; }
+  function grow() { var ta = $("prompt"); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.3)) + "px"; }
   function loadImg(id, im) {
     if (imgCache[id]) { im.src = imgCache[id]; return; }
     api({ action: "rcFile", id: id }, 40000).then(function (r) { if (r.ok && r.data) { imgCache[id] = r.data; im.src = r.data; } else im.alt = "사진을 불러오지 못했어요"; });

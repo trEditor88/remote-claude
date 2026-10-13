@@ -190,7 +190,7 @@ def save_files(job):
                 fp.write(base64.b64decode(b64))
             paths.append(path)
         except Exception as e:
-            print(time.strftime('%H:%M:%S'), '사진 받기 실패', fid, e, flush=True)
+            print(time.strftime('%Y-%m-%d %H:%M:%S'), '사진 받기 실패', fid, e, flush=True)
     return paths
 
 
@@ -263,9 +263,9 @@ def run(job, fresh=False):
     who = '원격 ' + str(job.get('id') or '')
     hid, key, left = AF.reserve(who)
     if not hid:
-        print(time.strftime('%H:%M:%S'), '사용량 한도 · API 대체 안 됨:', left, flush=True)
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), '사용량 한도 · API 대체 안 됨:', left, flush=True)
         return dict(res, error=(res.get('error') or '')[:200] + f' (API 대체 안 됨: {left})')
-    print(time.strftime('%H:%M:%S'), '사용량 한도 → API 키로 다시 실행', job.get('id'), f'(예산 ${left:.2f})', flush=True)
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '사용량 한도 → API 키로 다시 실행', job.get('id'), f'(예산 ${left:.2f})', flush=True)
     note = ('[구독 사용량 한도 때문에 같은 요청을 API 로 다시 실행합니다. 앞선 시도가 일부 작업을 했을 수 있으니 '
             '파일 상태를 확인하고 이미 된 일은 되풀이하지 마세요.]\n')
     try:
@@ -436,11 +436,11 @@ def post_done(body):
     try:
         r = post(dict(body, action='rcDone', key=KEY), timeout=30)
     except Exception as e:
-        print(time.strftime('%H:%M:%S'), '결과 보내기 실패', body.get('id'), e, flush=True)
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), '결과 보내기 실패', body.get('id'), e, flush=True)
         return 'retry'
     if r.get('ok'):
         return 'ok'
-    print(time.strftime('%H:%M:%S'), '결과 거절', body.get('id'), r.get('error'), flush=True)
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '결과 거절', body.get('id'), r.get('error'), flush=True)
     return 'fatal' if r.get('error') in DONE_FATAL else 'retry'
 
 
@@ -468,14 +468,14 @@ def flush_pending():
             with open(fp, encoding='utf-8') as f:
                 body = json.load(f)
         except Exception as e:
-            print(time.strftime('%H:%M:%S'), '밀린 결과 파일 깨짐', os.path.basename(fp), e, flush=True)
+            print(time.strftime('%Y-%m-%d %H:%M:%S'), '밀린 결과 파일 깨짐', os.path.basename(fp), e, flush=True)
             os.replace(fp, fp + '.bad')
             continue
         st = post_done(body)
         if st == 'retry':
             return
         os.remove(fp)
-        print(time.strftime('%H:%M:%S'), '밀린 결과 보냄' if st == 'ok' else '밀린 결과 버림(서버 거절)', body.get('id'), flush=True)
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), '밀린 결과 보냄' if st == 'ok' else '밀린 결과 버림(서버 거절)', body.get('id'), flush=True)
 
 
 FOLDERS_SENT = [None, 0.0]
@@ -496,7 +496,7 @@ def once():
     if not r.get('ok') or not r.get('job'):
         return False
     job = r['job']
-    print(time.strftime('%H:%M:%S'), '받음', job['id'], job.get('model') or '기본', job.get('mode') or '수정 허용',
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '받음', job['id'], job.get('model') or '기본', job.get('mode') or '수정 허용',
           job['prompt'][:60].replace('\n', ' '), flush=True)
     try:
         res = run(job)
@@ -504,7 +504,7 @@ def once():
         res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
     sent = send_done({'id': job['id'], **res})
     state = '중지됨' if res.get('canceled') else ('오류: ' + res['error'] if res.get('error') else '완료')
-    print(time.strftime('%H:%M:%S'), '보냄' if sent else '보내기 미룸', job['id'], f"{res.get('sec', 0)}초", state, flush=True)
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '보냄' if sent else '보내기 미룸', job['id'], f"{res.get('sec', 0)}초", state, flush=True)
     return True
 
 
@@ -539,7 +539,7 @@ if __name__ == '__main__':
         print('이미 실행 중입니다.'); sys.exit(0)
     if sys.stdout is None:   # pythonw(창 없음): 기록을 파일로
         sys.stdout = sys.stderr = open(os.path.join(HERE, 'remote_claude.log'), 'a', encoding='utf-8', buffering=1)
-    print('원격 Claude 다리 시작:', API, '·', claude_exe(), '· 작업 폴더', ROOT, flush=True)
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '원격 Claude 다리 시작:', API, '·', claude_exe(), '· 작업 폴더', ROOT, flush=True)
     if not LEGACY_MODE and sys.stdout.isatty():
         print('이 창을 닫으면 멈춰요. 자동으로 켜려면: python remote_claude.py --install', flush=True)
     BOOT = True
@@ -550,6 +550,6 @@ if __name__ == '__main__':
                 idle_since = time.time()
                 continue
         except Exception as e:
-            print(time.strftime('%H:%M:%S'), '오류', e, flush=True)
+            print(time.strftime('%Y-%m-%d %H:%M:%S'), '오류', e, flush=True)
         # 2분 넘게 할 일이 없으면 15초마다(서버 무료 한도 아끼기). 요청을 받으면 다시 5초
         time.sleep(POLL_S if time.time() - idle_since < 120 else IDLE_POLL_S)
