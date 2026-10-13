@@ -299,6 +299,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s ease}
 .switch:checked{background:var(--blue)}
 .switch:checked::after{transform:translateX(18px)}
+.switch:disabled{opacity:.35;cursor:not-allowed}
 .ev{list-style:none;margin:0;padding:0;display:grid;max-height:34vh;overflow:auto}
 .ev li{display:grid;gap:1px;padding:8px 2px;border-top:1px solid var(--hairline);font-size:.875rem}
 .ev li:first-child{border-top:0}
@@ -899,8 +900,14 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     function row(name, label, sub) {
       var li = el("li"), who = el("label", "who2"), sw = el("input", "switch");
       sw.type = "checkbox"; sw.setAttribute("role", "switch"); sw.setAttribute("aria-label", label);
+      sw.id = "dir-" + Object.keys(boxes).length; who.htmlFor = sw.id;   // 글자를 눌러도 켜지게
       who.appendChild(el("b", null, label)); if (sub) who.appendChild(el("span", null, sub));
-      li.appendChild(who); li.appendChild(sw); ul.appendChild(li); boxes[name] = sw; return sw;
+      li.appendChild(who); li.appendChild(sw); ul.appendChild(li); boxes[name] = sw;
+      li.addEventListener("click", function () {   // 잠긴 스위치는 눌러도 반응이 없으니 이유를 알려 준다
+        if (!sw.disabled) return;
+        toast(name === "!shell" ? (all.checked ? "'전체'를 끄고 폴더를 고르면 켤 수 있어요" : "먼저 위에서 폴더를 하나 이상 켜 주세요") : "'전체'를 끄면 폴더를 하나씩 고를 수 있어요");
+      });
+      return sw;
     }
     var all = row("*", "전체 (제한 없음)", "작업 폴더 전체를 허용해요. 배포처럼 여러 폴더를 쓰는 일에 필요해요.");
     var sh = row("!shell", "명령 실행 (빌드·테스트·git 등)", "⚠ 켜면 명령으로는 폴더 밖도 읽고 쓸 수 있어요(폴더 제한은 파일 도구에만 걸려요). 꼭 필요할 때만 켜세요. 폴더를 하나 이상 골라야 켤 수 있어요.");
