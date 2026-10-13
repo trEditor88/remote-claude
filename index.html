@@ -2,7 +2,21 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" id="vp" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+/* 휴대폰은 0.68배로 보이게(사용자가 고른 배율): 화면 폭/0.68 너비로 그리고 브라우저가 화면에 맞춰 줄인다. 손가락으로 확대는 그대로 됨 */
+(function () {
+  var Z = 0.68, vp = document.getElementById("vp");
+  function fit() {
+    var a = screen.width, b = screen.height, land = Math.abs(window.orientation || 0) === 90 || (screen.orientation && /landscape/.test(screen.orientation.type));
+    var w = land ? Math.max(a, b) : Math.min(a, b);
+    if (Math.min(a, b) >= 600) return;   // 태블릿·PC 는 그대로
+    // 가로로 돌린 휴대폰은 1023 을 넘지 않게(넘으면 PC 처럼 대화 목록이 늘 펼쳐져 좁아짐)
+    vp.setAttribute("content", "width=" + Math.min(1023, Math.round(w / Z)) + ", viewport-fit=cover");
+  }
+  fit(); window.addEventListener("orientationchange", function () { setTimeout(fit, 50); });
+})();
+</script>
 <title>원격 Claude</title>
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -162,7 +176,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .banner.bad{color:var(--red)}
 .banner code{font-family:var(--mono);font-size:.875em}
 
-.msgs{list-style:none;margin:0;padding:8px 0 24px;display:grid;gap:40px}
+.msgs{list-style:none;margin:0;padding:8px 0 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
+.msgs>li{min-width:0}   /* 긴 코드·표가 칸을 넓혀 페이지 전체가 옆으로 늘어나지 않게(넓은 건 그 상자 안에서만 가로 스크롤) */
 .me{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .bubble{max-width:min(88%,640px);background:var(--parchment);border-radius:var(--r-lg) var(--r-lg) 6px var(--r-lg);padding:10px 16px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
 .me-meta{font-size:.8125rem;color:var(--muted);padding:0 4px}
@@ -211,7 +226,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .md .md-img figcaption{margin-top:6px;font-size:13px;color:var(--muted)}
 .md strong{font-weight:700}
 .md .tbl{overflow-x:auto;margin:0 0 .8em}
-.md table{border-collapse:collapse;font-size:.9375rem;line-height:1.5}
+.md table{border-collapse:collapse;font-size:.9375rem;line-height:1.5;overflow-wrap:normal}
 .md th,.md td{border:1px solid var(--border);padding:7px 11px;text-align:left;vertical-align:top}
 .md th{background:var(--parchment);font-weight:600}
 .md .task{font-family:var(--mono)}
@@ -519,6 +534,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "원격 Claude 사용을 허락받은 계정만 쓸 수 있어요. 관리자에게 요청하세요.",
     need_setup: "먼저 설정에서 보안 코드를 정해 주세요. 정하기 전에는 PC로 실행하지 않아요.",
     rc_dir_unknown: "PC에 없는 폴더가 들어 있어요. 설정을 다시 열어 골라 주세요.",
+    rc_no_session: "이 대화엔 아직 이어 갈 Claude 세션이 없어요. 요청이 한 번 끝난 뒤에 보내 주세요.", rc_open_busy: "이 대화에서 실행 중인 요청이 끝난 뒤에 앱으로 보낼 수 있어요.",
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
     rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
     rc_not_active: "이미 끝난 요청이에요.", bad_code: "보안 코드가 맞지 않아요.", code_expired: "확인 시간이 지났어요. 처음부터 다시 로그인해 주세요.",
@@ -854,7 +870,24 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (!q.allow) { go(); return; }
     askCode(q.t + "을(를) 실행할까요?", "배포처럼 되돌리기 어려운 작업이라 위험 명령을 허용하고 보내요. 실행 중에도 중지할 수 있어요. 보안 코드를 다시 넣어 주세요.", "실행", true).then(function (c) { if (c) go(c); });
   }
-  function quickMenu() { return QUICK.map(function (q) { return q === "-" ? q : { icon: q.i, label: q.t, danger: !!q.allow, run: function () { runQuick(q); } }; }); }
+  function quickMenu() {
+    var m = QUICK.map(function (q) { return q === "-" ? q : { icon: q.i, label: q.t, danger: !!q.allow, run: function () { runQuick(q); } }; });
+    var t = curThread();
+    if (t) m.unshift({ icon: "monitor", label: "이 대화 Claude 앱으로 보내기", run: function () { openInApp(t); } }, "-");
+    return m;
+  }
+  // 이 대화를 PC 의 Claude Code 창(원격 연결 켬)으로 복사해 열고, Claude 앱(Code)에서 이어 가게 한다. PC 에 창을 띄우므로 보안 코드를 다시 묻는다
+  function openInApp(t) {
+    askCode("이 대화를 Claude 앱으로 보낼까요?", "PC 에 원격 연결을 켠 Claude Code 창을 열어요. 그다음 Claude 앱(또는 claude.ai/code)의 Code 목록에서 이어서 쓸 수 있어요. 대화를 복사해서 여는 거라 여기 대화는 그대로 남아요. 앱 쪽 창에는 이 사이트의 보호 장치(위험 명령 막기·작업 폴더 제한)가 걸리지 않아요. 보안 코드를 다시 넣어 주세요.", "보내기", true)
+      .then(function (code) {
+        if (!code) return;
+        api({ action: "rcSubmit", mode: "open", thread: t.thread, code: code }).then(function (r) {
+          if (!r.ok) { toast(errMsg(r)); if (r.error === "need_setup") setupCode(false); return; }
+          if (cur !== t.thread) { pendingFolder = ""; setCur(t.thread); threadSig = ""; justMoved = true; }
+          closeSide(); toast("PC 로 보냈어요. 창이 열리면 Claude 앱에서 이어 가세요"); load();
+        });
+      });
+  }
 
   /* ── 로그인: 비밀번호 → (새 기기·IP 면) 보안 코드 ── */
   function deviceId() {
@@ -880,7 +913,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 설정: 보안 코드·로그인 유지·믿는 기기·보안 기록 ── */
   var EV = { login: "로그인", login_nocode: "로그인 (보안 코드 없음)", login_new_device: "새 기기 로그인 (보안 코드 확인)", login_fail: "로그인 실패", locked: "너무 많이 틀려 잠김",
     new_device: "새 기기·장소에서 로그인 시도", code_fail: "보안 코드 틀림", code_set: "보안 코드 정함", code_changed: "보안 코드 바꿈", code_change_fail: "보안 코드 바꾸기 실패",
-    trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
+    trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", app_open: "Claude 앱으로 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
   var EV_BAD = { dirs_set: 1, bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
   function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
     var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {}, nums = [];
@@ -1137,6 +1170,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     }
     if (x.prompt !== "(사진)" || !(x.files && x.files.length)) me.appendChild(el("div", "bubble", x.prompt));
     if (x.mode === "plan") tags.push("읽기만");
+    if (x.mode === "open") tags.push("앱으로 보내기");
     if (x.model) tags.push(MODEL_TAG[x.model] || x.model);
     if (x.allow) tags.push("⚠ 위험 명령 허용");
     me.appendChild(el("div", "me-meta", tags.join(" · ")));
@@ -1153,7 +1187,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     function act(icon, label, fn) { var b = el("button", "btn-sm"); b.type = "button"; b.appendChild(ic(icon)); b.appendChild(document.createTextNode(label)); b.onclick = function () { fn(b); }; head.appendChild(b); }
     if (x.status === "queued") act("x", "취소", function (b) { cancelJob(x, b); });
     if (x.status === "running") act("stop", "중지", function (b) { cancelJob(x, b); });
-    if (x.status === "error" || x.status === "canceled") act("retry", "다시 쓰기", function () { var ta = $("prompt"); ta.value = x.prompt; grow(); updateSend(); ta.focus(); });
+    if ((x.status === "error" || x.status === "canceled") && x.mode === "open") act("retry", "다시 보내기", function () { var t = curThread(); if (t) openInApp(t); });
+    else if (x.status === "error" || x.status === "canceled") act("retry", "다시 쓰기", function () { var ta = $("prompt"); ta.value = x.prompt; grow(); updateSend(); ta.focus(); });
     if (!ACTIVE[x.status] && out) act("copy", "복사", function () { copy(out); });
     ai.appendChild(head);
 
@@ -1265,6 +1300,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       { icon: "folder-move", label: t.folder ? "다른 폴더로 이동" : "폴더로 이동", run: function () { moveThread(t); } }
     ];
     if (t.folder) m.push({ icon: "folder-out", label: "폴더에서 빼기", run: function () { setThread(t, { folder: "" }, "폴더에서 뺐어요"); } });
+    m.push({ icon: "monitor", label: "Claude 앱으로 보내기", run: function () { openInApp(t); } });
     m.push({ icon: "download", label: "내보내기 (.md)", run: function () { exportThread(t); } }, "-", { icon: "trash", label: "삭제", danger: true, run: function () { deleteThread(t); } });
     return m;
   }
@@ -1315,6 +1351,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       its.forEach(function (x, i) {
         var tags = [fmtFull(x.createdAt)], info = [ST[x.status] || x.status];
         if (x.mode === "plan") tags.push("읽기만");
+    if (x.mode === "open") tags.push("앱으로 보내기");
         if (x.model) tags.push(MODEL_TAG[x.model] || x.model);
         if (x.sec) info.push(dur(x.sec));
         if (x.info && x.info.model) info.push(modelName(x.info.model));

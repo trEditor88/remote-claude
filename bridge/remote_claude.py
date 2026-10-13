@@ -136,7 +136,7 @@ def kill_tree(p):
         pass
 
 
-BRIDGE_V = 2
+BRIDGE_V = 3   # 3: 'Claude 앱으로 보내기'(mode open) 요청을 안다. 서버는 3 미만 다리에 그 요청을 주지 않는다
 SKIP_DIRS = ('__pycache__', 'node_modules', 'gas', 'remote-claude-inbox')
 
 
@@ -461,6 +461,61 @@ def send_done(body):
     return False
 
 
+def session_cwd(sid):
+    """그 세션이 실행된 폴더(세션 기록 첫 줄들의 cwd). 세션 파일이 없으면 None."""
+    hits = glob.glob(os.path.join(os.path.expanduser('~'), '.claude', 'projects', '*', sid + '.jsonl'))
+    for fp in hits:
+        try:
+            with open(fp, encoding='utf-8') as f:
+                for _, line in zip(range(40), f):
+                    cwd = (json.loads(line) or {}).get('cwd') if '"cwd"' in line else None
+                    if cwd:
+                        return cwd
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def inside(path, base):
+    path, base = os.path.normcase(os.path.realpath(path)), os.path.normcase(os.path.realpath(base))
+    return path == base or path.startswith(base.rstrip('\\/') + os.sep)
+
+
+def open_in_app(job):
+    """'Claude 앱으로 보내기': 이 대화의 마지막 세션을 복사(--fork-session)해 원격 연결(--remote-control)을 켠
+    Claude Code 창을 PC 에 새로 띄운다. Claude 는 -p 로 돌리지 않고, 창은 다리와 따로 살아 있다(창을 닫으면 원격 연결도 꺼짐).
+    복사본이라 원래 대화(사이트)와 앱 쪽이 같은 세션 파일을 동시에 고치지 않는다."""
+    t0 = time.time()
+    sid = str(job.get('sessionId') or '')
+    if not sid or not all(c.isalnum() or c == '-' for c in sid):
+        return {'result': '', 'error': '이 대화에 이어 갈 Claude 세션이 없어요. 요청을 한 번 끝까지 실행한 뒤 다시 보내 주세요.', 'sec': 0}
+    cwd = session_cwd(sid)
+    if not cwd or not os.path.isdir(cwd):
+        return {'result': '', 'error': 'PC 에서 이 대화의 세션 기록을 찾지 못했어요(지워졌거나 다른 PC 에서 실행한 대화).', 'sec': 0}
+    if not (inside(cwd, ROOT) or inside(cwd, INBOX)):   # 다리 작업 폴더 밖에서 연 세션은 열지 않는다
+        return {'result': '', 'error': '이 대화의 세션이 작업 폴더 밖에 있어 열지 않았어요.', 'sec': 0}
+    title = ''.join(c for c in str(job.get('title') or '대화') if c.isprintable())   # 제어 문자(NUL 등)는 실행 인자에 못 넣으므로 뺀다
+    name = ' '.join(('원격: ' + title).split())[:50]
+    cmd = [claude_exe(), '--resume', sid, '--fork-session', '--remote-control', name]
+    flags = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+    try:
+        p = subprocess.Popen(cmd, cwd=cwd, env=child_env(), creationflags=flags, close_fds=True)
+    except OSError as e:
+        return {'result': '', 'error': f'Claude Code 창을 열지 못했어요: {e}'[:300], 'sec': 0}
+    for _ in range(16):   # 곧바로 꺼지면(세션 없음·로그인 필요 등) 실패로 알린다
+        if p.poll() is not None:
+            return {'result': '', 'error': f'Claude Code 창이 바로 닫혔어요(종료 코드 {p.returncode}). PC 에서 claude 로그인 상태를 확인해 주세요.', 'sec': round(time.time() - t0)}
+        time.sleep(0.5)
+    where = os.path.relpath(cwd, ROOT) if inside(cwd, ROOT) else cwd
+    return {'result': (f"PC 에 원격 연결을 켠 Claude Code 창을 열었어요.\n\n"
+                       f"- Claude 앱(또는 claude.ai/code)의 **Code** 목록에서 **{name}** 을(를) 찾아 이어서 쓰면 돼요.\n"
+                       f"- 이 대화를 복사해서 연 거라, 여기 대화는 그대로 남고 앱 쪽은 따로 이어져요.\n"
+                       f"- 작업 폴더: `{where}` · PC 의 그 창을 닫으면 원격 연결도 꺼져요.\n"
+                       f"- ⚠ 앱 쪽 창은 PC 에 로그인된 Claude 계정으로만 조종되고, 이 사이트의 보호 장치(위험 명령 막기·작업 폴더 제한·명령 끔)가 걸리지 않아요. "
+                       f"그 폴더의 프로젝트 설정에 따라 배포·삭제 같은 명령도 묻지 않고 실행될 수 있으니 앱에서 시킬 때 조심하세요."),
+            'sec': round(time.time() - t0), 'sessionId': sid}
+
+
 def flush_pending():
     """예전에 못 보낸 결과를 다시 보낸다. 끊김·일시 오류면 다음 확인으로 미루고, 깨진 파일은 .bad 로 치워 뒤를 막지 않는다."""
     for fp in sorted(glob.glob(os.path.join(PENDING, '*.json'))):
@@ -499,7 +554,7 @@ def once():
     print(time.strftime('%Y-%m-%d %H:%M:%S'), '받음', job['id'], job.get('model') or '기본', job.get('mode') or '수정 허용',
           job['prompt'][:60].replace('\n', ' '), flush=True)
     try:
-        res = run(job)
+        res = open_in_app(job) if job.get('mode') == 'open' else run(job)
     except Exception as e:
         res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
     sent = send_done({'id': job['id'], **res})
