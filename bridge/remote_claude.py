@@ -16,7 +16,7 @@
   고른 폴더 첫째를 실행 위치로, 나머지는 --add-dir 로 주고, 보호 장치(rc_guard.py)에 RC_DIRS 로 넘겨 밖을 막는다.
   ['*'] = 작업 폴더 전체, 비어 있으면 사진 받는 폴더(remote-claude-inbox)에서 대화만. 서버는 v2 가 아닌 다리에 요청을 주지 않는다.
 """
-import base64, glob, json, os, queue, shutil, socket, subprocess, sys, threading, time, urllib.request
+import base64, glob, json, os, queue, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request
 
 # 두 가지로 쓴다
 #  - 관리자 PC(D:\AI_HEO\tools): study-helper/sync.json 의 워커 키로 관리자 계정 요청을 받고, 작업 폴더는 D:\AI_HEO
@@ -82,7 +82,7 @@ WAITING = set()   # 폴더가 비길 기다리는 요청 id
 
 def dir_claim(job):
     """고치는 요청(읽기만·앱으로 보내기 제외)의 폴더 묶음. '*' 는 전체(모든 폴더와 겹침), 비면 대화만(안 겹침)."""
-    if job.get('mode') in ('plan', 'open'):
+    if job.get('mode') in ('plan', 'open') or str(job.get('model') or '').startswith('local-'):   # 로컬 AI 는 파일을 안 건드림
         return set()
     d = job.get('dirs')
     return {'*'} if d == ['*'] else {n for n in (d if isinstance(d, list) else []) if isinstance(n, str)}
@@ -184,7 +184,7 @@ def kill_tree(p):
         pass
 
 
-BRIDGE_V = 3   # 3: 'Claude 앱으로 보내기'(mode open) 요청을 안다. 서버는 3 미만 다리에 그 요청을 주지 않는다
+BRIDGE_V = 4   # 3: 'Claude 앱으로 보내기'(mode open) 요청을 안다. 4: 로컬 AI(model local-*) 요청을 안다. 서버는 그보다 옛 다리에 그 요청을 주지 않는다
 SKIP_DIRS = ('__pycache__', 'node_modules', 'gas', 'remote-claude-inbox')
 
 
@@ -373,7 +373,7 @@ def _run(job, fresh=False, api=None):
     cmd += ['--permission-mode', 'plan' if job.get('mode') == 'plan' else 'bypassPermissions']
     if job.get('title'):
         cmd += ['-n', '원격: ' + ' '.join(job['title'].split())[:40]]
-    if job.get('sessionId') and not fresh:
+    if job.get('sessionId') and not fresh and not str(job['sessionId']).startswith('local-'):   # 로컬 AI 로 이어 온 대화면 새 Claude 세션
         cmd += ['--resume', job['sessionId']]
     t0 = time.time()
     p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, creationflags=NO_WINDOW)
@@ -472,6 +472,214 @@ def _run(job, fresh=False, api=None):
 def run_fresh(job, api=None):
     """작업 폴더가 바뀌면 Claude 세션이 다른 폴더에 있어 이어 가지 못함 → 새 세션으로 한 번만 다시."""
     return _run(dict(job, prompt='[작업 폴더 설정이 바뀌어 이전 대화 내용 없이 새로 시작합니다]\n' + job['prompt']), fresh=True, api=api)
+
+
+""" ── 로컬 AI(2026-10-14): 모델이 local-* 인 요청은 Claude 대신 이 PC 의 로컬 LLM(llama-swap, OpenAI 호환)으로 답한다 ──
+   도구·파일·명령 없이 글(+사진)만 주고받는다. 대화 기록은 INBOX/local/<세션>.json(세션 id 'local-<hex>')에 두고,
+   서버는 그 id 를 Claude 세션 id 처럼 대화(thread)에 저장했다가 다음 요청 때 돌려준다."""
+LOCAL_MODELS = {'local-fast': ('qwen-fast', False), 'local-next': ('flash-next', True)}   # (llama-swap 모델 이름, 생각 켜기)
+LOCAL_DIR = os.path.join(INBOX, 'local')
+LOCAL_SID = re.compile(r'^local-[0-9a-f]{20}$')
+LOCAL_HIST_CHARS = 30000   # 이어 붙일 지난 대화 글자 상한(한글 ≈ 1자 1토큰. 모델 문맥 64k 토큰 안에서 새 질문·사진·답·생각 16k 자리를 남김)
+LOCAL_OPEN = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # 127.0.0.1 요청이 프록시로 새지 않게
+
+
+def local_url():
+    """로컬 LLM 주소: remote_claude.json 의 llm > 환경변수 LOCAL_LLM_URL > 기본. 이 PC 안(127.0.0.1·localhost)만 쓴다."""
+    try:
+        u = (json.load(open(CONF, encoding='utf-8')) if os.path.exists(CONF) else {}).get('llm')
+    except Exception:
+        u = None
+    u = str(u or os.environ.get('LOCAL_LLM_URL') or 'http://127.0.0.1:8080').rstrip('/')
+    return u if re.match(r'^http://(127\.0\.0\.1|localhost)(:\d{1,5})?$', u) else 'http://127.0.0.1:8080'
+
+
+def local_status():
+    """사이트 표시용: 로컬 LLM 서버가 켜져 있는지와 지금 올라와 있는 모델."""
+    try:
+        with LOCAL_OPEN.open(local_url() + '/running', timeout=3) as r:
+            j = json.loads(r.read().decode('utf-8', 'replace'))
+        run = j.get('running') if isinstance(j, dict) else j
+        names = sorted({str(x.get('model') or '')[:40] for x in (run or []) if isinstance(x, dict) and x.get('model')})
+        return {'up': True, 'loaded': names[:4]}
+    except Exception:
+        return {'up': False, 'loaded': []}
+
+
+def local_system():
+    common = r'D:\llm\common_system.txt'   # 이 PC 에만 있음(편향 줄이는 공통 지시). 없으면 기본 지시만
+    base = ('너는 사용자의 PC 에서 돌아가는 로컬 AI 비서다. 한국어로 묻으면 한국어로, 이유 중심으로 짧고 정확하게 답한다. '
+            '모르는 것은 모른다고 하고 확실하지 않은 사실은 추정이라고 밝힌다. 너는 파일을 읽거나 명령을 실행할 수 없다.')
+    try:
+        extra = open(common, encoding='utf-8').read().strip() if os.path.exists(common) else ''
+    except OSError:
+        extra = ''
+    return base + ('\n\n' + extra if extra else '')
+
+
+def local_load(sid):
+    if not (isinstance(sid, str) and LOCAL_SID.match(sid)):
+        return []
+    try:
+        h = json.load(open(os.path.join(LOCAL_DIR, sid + '.json'), encoding='utf-8'))
+        return [m for m in h if isinstance(m, dict) and m.get('role') in ('user', 'assistant') and isinstance(m.get('content'), str)]
+    except Exception:
+        return []
+
+
+def local_save(sid, hist):
+    os.makedirs(LOCAL_DIR, exist_ok=True)
+    fp = os.path.join(LOCAL_DIR, sid + '.json')
+    with open(fp + '.tmp', 'w', encoding='utf-8') as f:
+        json.dump(hist, f, ensure_ascii=False)
+    os.replace(fp + '.tmp', fp)
+
+
+def local_trim(hist):
+    """오래된 것부터 빼서 LOCAL_HIST_CHARS 안으로(질문·답 짝이 깨지지 않게 둘씩)."""
+    while len(hist) > 2 and sum(len(m['content']) for m in hist) > LOCAL_HIST_CHARS:
+        hist = hist[2:]
+    return hist
+
+
+def run_local(job):
+    t0 = time.time()
+    name, think = LOCAL_MODELS[job['model']]
+    old = local_load(job.get('sessionId'))
+    sid = job['sessionId'] if old else 'local-' + os.urandom(10).hex()   # 새 대화거나 Claude 세션이던 대화면 새 기록
+    paths = save_files(job)
+    if job.get('files') and len(paths) < len(job['files']):   # 사진을 못 받았으면 없는 사진에 답하지 않게 멈춘다
+        shutil.rmtree(job_files_dir(job), ignore_errors=True)
+        return {'sessionId': job.get('sessionId') or '', 'usedModel': name, 'turns': 0, 'danger': '', 'result': '', 'sec': round(time.time() - t0),
+                'error': '붙인 사진을 PC 가 받지 못했어요. 다시 보내 주세요.'}
+    text = '' if job['prompt'] == '(사진)' and paths else job['prompt']
+    content = text or '이 사진을 설명해 줘.'
+    if paths:
+        parts = []
+        for p in paths:
+            mime = 'image/' + {'jpg': 'jpeg'}.get(p.rsplit('.', 1)[-1], p.rsplit('.', 1)[-1])
+            parts.append({'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,' + base64.b64encode(open(p, 'rb').read()).decode()}})
+        content = parts + [{'type': 'text', 'text': content}]
+    hist = local_trim(old)
+    body = {'model': name, 'stream': True, 'max_tokens': 16384 if think else 8192,
+            'messages': [{'role': 'system', 'content': local_system()}] + hist + [{'role': 'user', 'content': content}],
+            'chat_template_kwargs': {'enable_thinking': think}}
+    req = urllib.request.Request(local_url() + '/v1/chat/completions', data=json.dumps(body).encode('utf-8'),
+                                 headers={'Content-Type': 'application/json'})
+    out = {'sessionId': sid, 'usedModel': name, 'turns': 0, 'danger': ''}
+    # 연결·읽기는 따로 스레드에서(llama-swap 이 모델을 올리거나 다른 요청이 끝나길 기다리는 동안에도 진행 표시·중지 확인을 하려고)
+    q, hold = queue.Queue(), {'stop': False}
+    def reader():
+        resp = None
+        try:
+            resp = LOCAL_OPEN.open(req, timeout=3600)
+            hold['resp'] = resp
+            if hold['stop']:
+                return
+            q.put(('open', None))
+            for raw in resp:
+                q.put(('line', raw))
+            q.put(('end', None))
+        except Exception as e:
+            q.put(('err', e))
+        finally:   # 닫기는 읽는 스레드만(다른 스레드가 close 하면 읽기가 끝날 때까지 막힘)
+            try:
+                resp and resp.close()
+            except Exception:
+                pass
+    threading.Thread(target=reader, daemon=True).start()
+    answer, reason, ntok, t_first, opened, finished = [], [], 0, None, False, False
+    last_sent, last_check, canceled, err = 0.0, 0.0, False, ''
+    try:
+        while True:
+            try:
+                kind, v = q.get(timeout=1)
+            except queue.Empty:
+                kind, v = None, None
+            if kind == 'err':
+                if not opened:
+                    if isinstance(v, urllib.error.HTTPError):   # 서버는 켜져 있지만 거절(모델 없음·문맥 넘침 등)
+                        try:
+                            detail = ' '.join(v.read(400).decode('utf-8', 'replace').split())
+                        except Exception:
+                            detail = ''
+                        why = f'로컬 LLM 이 요청을 거절했어요(HTTP {v.code}). ' + ('대화가 너무 길면 새 대화로 시작해 주세요. ' if v.code in (400, 413) else '') + detail[:150]
+                    else:
+                        why = f'이 PC 의 로컬 LLM 서버에 연결하지 못했어요({type(v).__name__}). 서버가 켜져 있는지 확인해 주세요.'
+                    return dict(out, sessionId=job.get('sessionId') or '', result='', sec=round(time.time() - t0), error=why[:300])
+                err = f'로컬 LLM 응답이 끊겼어요({type(v).__name__}).'
+                break
+            if kind == 'end':
+                if not finished:   # [DONE]·finish_reason 없이 끝남 = 중간에 끊김
+                    err = '로컬 LLM 응답이 중간에 끊겼어요.'
+                break
+            opened = opened or kind == 'open'
+            if kind == 'line':   # SSE: 'data: {...}' 줄
+                line = v.decode('utf-8', 'replace').strip()
+                data = line[5:].strip() if line.startswith('data:') else ''
+                if data == '[DONE]':
+                    finished = True
+                    break
+                try:
+                    ch = (json.loads(data).get('choices') or [{}])[0] if data else {}
+                    d = ch.get('delta') or {}
+                    finished = finished or bool(ch.get('finish_reason'))
+                except Exception:
+                    d = {}
+                if d.get('reasoning_content'):
+                    reason.append(d['reasoning_content']); ntok += 1
+                if d.get('content'):
+                    answer.append(d['content']); ntok += 1
+                    t_first = t_first or time.time()
+            now = time.time()
+            if now - last_sent >= PROGRESS_S or now - last_check >= CHECK_S:
+                a = ''.join(answer)
+                steps = [f'{name} 에 보냄' + (' · 생각 켬' if think else '')]
+                if not opened:
+                    steps.append(f'로컬 LLM 차례를 기다리는 중 · {round(now - t0)}초 (모델을 올리거나 다른 작업이 끝나길 기다려요)')
+                elif not reason and not a:
+                    steps.append('질문을 읽는 중…')
+                if reason:
+                    steps.append(f'생각하는 중 · {len("".join(reason)):,}자')
+                if a:
+                    steps.append(f'답 쓰는 중 · {len(a):,}자 · 약 {len(a) / max(0.1, now - t_first):.0f}자/초')
+                    steps.append('미리 보기 · ' + ' '.join(a[-120:].split()))
+                body2 = {'action': 'rcProgress', 'key': KEY, 'id': job['id']}
+                if now - last_sent >= PROGRESS_S:
+                    body2['progress'] = '\n'.join(steps)[:4000]
+                    last_sent = now
+                last_check = now
+                try:
+                    pr = post(body2, timeout=15)
+                    if pr.get('cancel') or pr.get('error') == 'bad_key':
+                        canceled = True
+                        break
+                except Exception:
+                    pass
+    finally:
+        hold['stop'] = True
+        try:   # 소켓을 끊어 읽던 스레드를 바로 깨운다(llama-swap 도 생성을 멈춤). close 는 그 스레드가 한다
+            sock = getattr(getattr(getattr(hold.get('resp'), 'fp', None), 'raw', None), '_sock', None)
+            if sock is not None and not finished:
+                sock.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        shutil.rmtree(job_files_dir(job), ignore_errors=True)
+    sec = round(time.time() - t0)
+    a = ''.join(answer).strip()
+    gen = time.time() - (t_first or t0)
+    out.update(sec=sec, usedModel=f'{name} · {len(a) / max(0.1, gen):.0f}자/초' if a else name,
+               progress=f'{name} · 생각 {len("".join(reason)):,}자 · 답 {len(a):,}자')
+    if canceled:
+        return dict(out, sessionId=job.get('sessionId') or '', result='', error='', canceled=True)
+    if not a:
+        why = err or ('생각만 하다 답을 못 냈어요. 질문을 줄이거나 빠른 모델로 다시 보내 주세요.' if reason else '로컬 LLM 이 빈 답을 보냈어요.')
+        return dict(out, sessionId=job.get('sessionId') or '', result='', error=why)
+    note = f'[사진 {len(paths)}장]\n' if paths else ''
+    local_save(sid, local_trim(hist + [{'role': 'user', 'content': note + text}, {'role': 'assistant', 'content': a}]))
+    if err:
+        a += '\n\n(' + err + ' 여기까지만 받았어요.)'
+    return dict(out, result=a[:60000], error='')
 
 
 PENDING = os.path.join(INBOX, 'pending-done')   # 못 보낸 결과(워커 키는 빼고 저장)
@@ -582,6 +790,7 @@ def flush_pending():
 
 
 FOLDERS_SENT = [None, 0.0]
+LLM_SENT, LLM_CHK = [None, 0.0], [None, 0.0]   # 로컬 LLM 상태: 마지막으로 보낸 값·시각 / 마지막 확인 값·시각
 BOOT = False   # 계속 실행할 때만 True: 첫 확인에서 서버가 '실행 중'으로 남은 옛 요청(다리가 꺼지며 끊긴 것)을 정리한다
 
 
@@ -593,9 +802,16 @@ def take():
     folders = folder_list()
     if BOOT or folders != FOLDERS_SENT[0] or time.time() - FOLDERS_SENT[1] > 600:   # 켜질 때·바뀔 때·10분마다
         body['folders'] = folders
+    now = time.time()
+    if BOOT or now - LLM_CHK[1] > 60:   # 로컬 LLM 상태는 1분마다 확인, 바뀌었거나 10분 지나면 보냄
+        LLM_CHK[0], LLM_CHK[1] = local_status(), now
+    if BOOT or LLM_CHK[0] != LLM_SENT[0] or now - LLM_SENT[1] > 600:
+        body['llm'] = LLM_CHK[0]
     r = post(body)
     if 'folders' in body:
         FOLDERS_SENT[:] = [folders, time.time()]
+    if 'llm' in body:
+        LLM_SENT[:] = [body['llm'], now]
     BOOT = False
     if not r.get('ok') or not r.get('job'):
         return None
@@ -612,7 +828,7 @@ def handle(job):
         res, claim = {'result': '', 'error': '', 'sec': 0, 'canceled': True}, None
     else:
         try:
-            res = open_in_app(job) if job.get('mode') == 'open' else run(job)
+            res = (open_in_app(job) if job.get('mode') == 'open' else run_local(job) if job.get('model') in LOCAL_MODELS else run(job))
         except Exception as e:
             res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
         finally:

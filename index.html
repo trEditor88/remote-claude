@@ -524,13 +524,17 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 (function () {
   "use strict";
   var KEY = "remote-claude:auth", TKEY = "remote-claude:thread", OKEY = "remote-claude:opts", FKEY = "remote-claude:folds", DKEY = "remote-claude:device";
+  // 로컬 AI(local.html, 2026-10-14): 같은 로그인·대화 기능으로 Claude 대신 PC 의 로컬 LLM 에게 묻는다(도구 없음, 사용량 0)
+  var LOCAL = /(^|\/)local(\.html)?$/.test(location.pathname), APP = LOCAL ? "로컬 AI" : "원격 Claude", AI = LOCAL ? "AI" : "Claude";
+  if (LOCAL) { TKEY += ":local"; OKEY += ":local"; }
   var API = "https://exam-api.dawn-sea-4052.workers.dev";
   try { API = localStorage.getItem("remote-claude:api") || API; } catch (e) {}   // 로컬 시험용(wrangler dev)
   var SVGNS = "http://www.w3.org/2000/svg";
   var ST = { queued: "대기", running: "실행 중", canceling: "중지하는 중", canceled: "중지됨", done: "완료", error: "오류" };
   var ACTIVE = { queued: 1, running: 1, canceling: 1 };
-  var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku" };
-  var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요." };
+  var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku", "local-fast": "로컬 빠름", "local-next": "로컬 깊게" };
+  var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요.",
+    "local-next": "깊게는 큰 모델이 생각한 뒤 답해서 1~3분쯤 걸려요. 가벼운 질문은 빠름으로 하세요." };
   var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "원격 Claude 사용을 허락받은 계정만 쓸 수 있어요. 관리자에게 요청하세요.",
     need_setup: "먼저 설정에서 보안 코드를 정해 주세요. 정하기 전에는 PC로 실행하지 않아요.",
     rc_dir_unknown: "PC에 없는 폴더가 들어 있어요. 설정을 다시 열어 골라 주세요.",
@@ -552,6 +556,12 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     { i: "clock", t: "최근 바뀐 파일", p: "작업 폴더에서 최근 3일 동안 바뀐 파일을 찾아 목록으로 정리해 줘." },
     { i: "doc", t: "문서 요약", p: "작업 폴더에서 가장 최근 문서(.md·.txt·.docx)를 찾아 핵심을 다섯 줄로 요약해 줘." }
   ];
+  var SUGGEST_LOCAL = [
+    { i: "doc", t: "글 요약", p: "아래 글을 핵심만 다섯 줄로 요약해 줘.\n\n" },
+    { i: "pencil", t: "문장 다듬기", p: "아래 문장을 자연스럽게 다듬고, 바꾼 이유를 짧게 알려 줘.\n\n" },
+    { i: "image", t: "사진 읽기", p: "붙인 사진의 글자를 그대로 받아 적어 줘." },
+    { i: "check", t: "개념 설명", p: "고등학생이 이해할 수 있게 설명해 줘: " }
+  ];
   var pcInfo = null;
   var $ = function (id) { return document.getElementById(id); };
   var isTouch = !!(window.matchMedia && matchMedia("(pointer: coarse)").matches);
@@ -560,12 +570,12 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var pendingFolder = "";   // '이 폴더에 새 대화'로 시작한 새 대화가 들어갈 폴더
   var skew = 0, pcSeenAt = -1, seq = 0, pollTimer = 0, toastTimer = 0, prevAct = null, doneMark = false, justMoved = false, sending = false;
   var threadSig = "", threadsDirty = false, menuAnchor = null, folds = new Set();
-  var opts = { model: "", mode: "" };
+  var opts = { model: LOCAL ? "local-fast" : "", mode: "" };
   var MAX_IMG = 4, pics = [], imgCache = {};   // pics = 보낼 사진 [{ name, data }], imgCache = 받아 온 사진 { id: data URL }
   try { auth = JSON.parse(localStorage.getItem(KEY) || sessionStorage.getItem(KEY) || "null"); } catch (e) {}   // 로그인 유지 = localStorage, 안 함 = sessionStorage(브라우저 닫으면 사라짐)
   var allowNext = false, challenge = "", dangerSeen = null;
   try { var saved = localStorage.getItem(TKEY); if (saved !== null) cur = saved; } catch (e) {}
-  try { var o = JSON.parse(localStorage.getItem(OKEY) || "{}"); if (MODEL_TAG[o.model] && o.model !== "opus") opts.model = o.model; if (o.mode === "plan") opts.mode = "plan"; } catch (e) {}
+  try { var o = JSON.parse(localStorage.getItem(OKEY) || "{}"); if (MODEL_TAG[o.model] && o.model !== "opus" && /^local-/.test(o.model) === LOCAL) opts.model = o.model; if (o.mode === "plan") opts.mode = "plan"; } catch (e) {}
   try { JSON.parse(localStorage.getItem(FKEY) || "[]").forEach(function (n) { folds.add(String(n)); }); } catch (e) {}
 
   /* ── 작은 도구 ── */
@@ -1208,7 +1218,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       ai.appendChild(dbox);
     }
     if (x.status === "queued") ai.appendChild(el("p", "wait", pcOnline() ? "PC가 곧 받아서 시작해요." : "PC가 응답하지 않아요. PC가 켜지면 순서대로 실행돼요."));
-    if (x.status === "canceling") ai.appendChild(el("p", "wait", "Claude를 멈추는 중이에요…"));
+    if (x.status === "canceling") ai.appendChild(el("p", "wait", AI + "를 멈추는 중이에요…"));
     if (x.status === "running") {
       var run = el("div", "run"), live = el("ol", "steps live");
       if (!steps.length) live.appendChild(stepEl("준비하는 중…", true));
@@ -1216,7 +1226,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       run.appendChild(live); ai.appendChild(run);
     }
     if (!ACTIVE[x.status]) {
-      if (x.status === "canceled" && !out) ai.appendChild(el("p", "wait", "중지했어요. 그때까지 바뀐 파일은 그대로 남아 있어요."));
+      if (x.status === "canceled" && !out) ai.appendChild(el("p", "wait", LOCAL ? "중지했어요." : "중지했어요. 그때까지 바뀐 파일은 그대로 남아 있어요."));
       if (out) {
         var body = el("div", "md" + (x.status === "error" ? " err" : "")), long = out.length > 1600 || out.split("\n").length > 28;
         body.appendChild(md(out));
@@ -1300,7 +1310,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       { icon: "folder-move", label: t.folder ? "다른 폴더로 이동" : "폴더로 이동", run: function () { moveThread(t); } }
     ];
     if (t.folder) m.push({ icon: "folder-out", label: "폴더에서 빼기", run: function () { setThread(t, { folder: "" }, "폴더에서 뺐어요"); } });
-    m.push({ icon: "monitor", label: "Claude 앱으로 보내기", run: function () { openInApp(t); } });
+    if (!LOCAL) m.push({ icon: "monitor", label: "Claude 앱으로 보내기", run: function () { openInApp(t); } });
     m.push({ icon: "download", label: "내보내기 (.md)", run: function () { exportThread(t); } }, "-", { icon: "trash", label: "삭제", danger: true, run: function () { deleteThread(t); } });
     return m;
   }
@@ -1388,6 +1398,13 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     var p = $("pc"); if (pcSeenAt < 0) { p.hidden = true; return; }
     var on = pcOnline(); p.hidden = false; p.className = "pc " + (on ? "on" : "off");
     $("pcText").textContent = on ? "PC 연결됨" : pcSeenAt ? "PC 꺼짐 · " + ago(pcSeenAt) : "PC 연결 기록 없음";
+    if (LOCAL && on) {
+      var lm = pcInfo && pcInfo.llm;
+      if (!lm) $("pcText").textContent = "PC 연결됨 · 다리 업데이트 필요";
+      else { p.className = "pc " + (lm.up ? "on" : "off"); $("pcText").textContent = lm.up ? "로컬 AI 켜짐" : "로컬 AI 꺼짐"; }
+      p.title = !lm ? "PC 다리가 로컬 AI 를 모르는 옛 버전이에요. 다리를 다시 켜 주세요." : lm.up ? "로컬 LLM 서버가 켜져 있어요." + (lm.loaded && lm.loaded.length ? " 올라와 있는 모델: " + lm.loaded.join(", ") + " (다른 모델은 처음에 1~2분 걸려요)" : " 처음 요청은 모델을 올리느라 1~2분 걸려요.") : "PC의 로컬 LLM 서버가 꺼져 있어요. PC에서 로컬 LLM 서버를 켜 주세요.";
+      return;
+    }
     p.title = on ? "PC 다리가 5초마다 새 요청을 확인하고 있어요." : "PC에서 tools\\remote_claude.py 가 꺼져 있어요. PC를 켜고 로그인하면 자동으로 켜져요.";
   }
   function renderHint() {
@@ -1397,7 +1414,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (allowNext) { h.textContent = "⚠ 이번 요청은 배포·삭제 같은 위험 명령도 실행돼요. 보내고 나면 다시 꺼져요."; h.className = "comp-hint danger"; return; }
     if (pcSeenAt >= 0 && !pcOnline()) { h.textContent = "PC가 응답하지 않아요. 보내 두면 PC가 켜질 때 실행돼요."; return; }
     if (MODEL_HINT[opts.model]) { h.textContent = MODEL_HINT[opts.model]; return; }
-    h.textContent = (t ? "이 대화에 이어서 보내요. Claude가 앞 내용을 기억해요." : pendingFolder ? "‘" + cut(pendingFolder, 16) + "’ 폴더에 새 대화로 보내요." : "새 대화로 보내요.") + (isTouch ? " Enter로 보내기" : " Enter로 보내기, Shift+Enter로 줄바꿈");
+    h.textContent = (t ? "이 대화에 이어서 보내요. " + AI + "가 앞 내용을 기억해요." : pendingFolder ? "‘" + cut(pendingFolder, 16) + "’ 폴더에 새 대화로 보내요." : "새 대화로 보내요.") + (isTouch ? " Enter로 보내기" : " Enter로 보내기, Shift+Enter로 줄바꿈");
     h.title = h.textContent;   // 좁은 화면에서 말줄임으로 잘려도 길게 누르거나 올려 보면 전체가 보이게
   }
   function render() {
@@ -1406,7 +1423,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     $("title").textContent = t ? cut(t.title, 80) : "새 대화";
     $("convFolder").hidden = !folder; $("convFolderName").textContent = folder;
     $("convMenu").hidden = !t;
-    document.title = (doneMark ? "(완료) " : "") + "원격 Claude";
+    document.title = (doneMark ? "(완료) " : "") + APP;
     var none = !items.length;
     $("empty").hidden = !none || cur === null;
     $("list").hidden = none;
@@ -1458,8 +1475,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       $("netErr").hidden = true;
       skew = (r.now || Date.now()) - Date.now();
       pcSeenAt = r.pcSeenAt || 0;
-      threads = r.threads || [];
+      var allT = r.threads || [];
+      threads = allT.filter(function (x) { return !!x.local === LOCAL; });
       var t = typeof r.thread === "string" ? r.thread : (cur || "");
+      // 다른 화면(원격 Claude ↔ 로컬 AI)의 대화가 골라졌으면 새 대화로
+      if (t && allT.some(function (x) { return x.thread === t; }) && !threads.some(function (x) { return x.thread === t; })) { t = ""; r.items = []; setCur(""); }
       if (t !== cacheThread) { cache = {}; cacheThread = t; }
       cur = t;
       var next = {}, missing = false;
@@ -1473,7 +1493,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       $("needSetup").hidden = !r.needSetup;
       pcInfo = r.pc || null;
       $("noPc").hidden = !pcInfo || pcInfo.hasBridge || pcInfo.legacy;
-      $("emptyLead").textContent = (pcInfo && pcInfo.dir ? "연결한 PC" + (pcInfo.pc ? "(" + pcInfo.pc + ")" : "") + "의 " + pcInfo.dir + " 폴더에서" : "연결한 PC에서") + " Claude Code가 일합니다. 아래에서 골라 고쳐 쓰거나 직접 적어 보내세요.";
+      if (LOCAL) $("emptyLead").textContent = "연결한 PC의 로컬 LLM이 답해요. Claude 사용량은 들지 않고, 파일을 읽거나 명령을 실행하지는 못해요. 사진은 붙일 수 있어요.";
+      else $("emptyLead").textContent = (pcInfo && pcInfo.dir ? "연결한 PC" + (pcInfo.pc ? "(" + pcInfo.pc + ")" : "") + "의 " + pcInfo.dir + " 폴더에서" : "연결한 PC에서") + " Claude Code가 일합니다. 아래에서 골라 고쳐 쓰거나 직접 적어 보내세요.";
       $("secAlert").hidden = !r.alerts; $("secAlertText").textContent = "보안 알림 " + r.alerts + "건이 있어요 (로그인 실패·새 기기·막은 명령 등)";
       if (typeof r.keep === "boolean" && auth.keep !== r.keep) { auth.keep = r.keep; saveAuth(); }
       watchDanger();
@@ -1506,7 +1527,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       });
     }
     if (x.status !== "running") { go(); return; }
-    dialog({ title: "실행 중인 작업을 멈출까요?", text: "이미 바뀐 파일은 되돌아가지 않아요.", ok: "멈추기", cancel: "계속 실행", danger: true }).then(function (v) { if (v) go(); });
+    dialog({ title: "실행 중인 작업을 멈출까요?", text: LOCAL ? "지금까지 쓴 답은 버려져요." : "이미 바뀐 파일은 되돌아가지 않아요.", ok: "멈추기", cancel: "계속 실행", danger: true }).then(function (v) { if (v) go(); });
   }
   function grow() { var ta = $("prompt"); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.3)) + "px"; }
   function loadImg(id, im) {
@@ -1654,11 +1675,26 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     r.checked = r.value === opts.mode;
     r.addEventListener("change", function () { if (r.checked) { opts.mode = r.value; saveOpts(); } });
   });
+  if (LOCAL) {   // 로컬 AI 화면: 이름·안내를 바꾸고 Claude 전용 도구(권한·빠른 작업·위험 허용)를 숨긴다
+    document.title = APP;
+    Array.prototype.forEach.call(document.querySelectorAll('link[rel="manifest"]'), function (l) { l.href = "local.webmanifest"; });   // 홈 화면에 추가하면 local.html 이 열리게
+    Array.prototype.forEach.call(document.querySelectorAll(".brand-text, #loginTitle"), function (n) { n.textContent = APP; });
+    $("loginTitle").nextElementSibling.textContent = "휴대폰에서 물어보면 PC의 로컬 AI가 답해 줍니다. 원격 Claude와 같은 계정으로 들어가요.";
+    $("model").textContent = "";
+    [["local-fast", "빠름 · Qwen 35B"], ["local-next", "깊게 · Flash-Next 125B"]].forEach(function (o) { var op = el("option", null, o[1]); op.value = o[0]; $("model").appendChild(op); });
+    [document.querySelector(".seg"), $("quick"), $("danger")].forEach(function (n) { n.style.display = "none"; });
+    $("prompt").placeholder = "로컬 AI에게 물어볼 것을 적어 주세요";
+    $("emptyTitle").textContent = "무엇을 물어볼까요?";
+    var tips = document.querySelector(".tips"); tips.textContent = "";
+    ["<b>대화마다 따로 기억해요.</b> 다른 주제는 새 대화로 시작하세요.", "<b>빠름</b>은 몇 초 안에, <b>깊게</b>는 생각한 뒤 1~3분 걸려 답해요.",
+     "PC 안에서만 돌아서 Claude 사용량이 들지 않아요. 대신 틀릴 때가 있으니 중요한 사실은 확인하세요.", "PC가 꺼져 있어도 보내 둘 수 있어요. PC가 켜지면 순서대로 답해요."]
+      .forEach(function (h) { var li = el("li"); h.split(/(<b>.*?<\/b>)/).forEach(function (part) { var mm = /^<b>(.*)<\/b>$/.exec(part); if (part) li.appendChild(mm ? el("b", null, mm[1]) : document.createTextNode(part)); }); tips.appendChild(li); });   // 고정 문구, <b> 만 굵게(innerHTML 안 씀)
+  }
   $("model").value = opts.model;
   $("model").addEventListener("change", function () { opts.model = this.value; saveOpts(); renderHint(); });
   function renderChips() {
     $("chips").textContent = "";
-    (auth && auth.user && auth.user.role === "admin" ? SUGGEST : SUGGEST_ANY).forEach(function (s) {
+    (LOCAL ? SUGGEST_LOCAL : auth && auth.user && auth.user.role === "admin" ? SUGGEST : SUGGEST_ANY).forEach(function (s) {
     var b = el("button", "chip"); b.type = "button";
     b.appendChild(ic(s.i)); b.appendChild(el("b", null, s.t)); b.appendChild(el("span", null, s.p));
     b.onclick = function () { var ta = $("prompt"); ta.value = s.p; grow(); updateSend(); ta.focus(); };
@@ -1667,7 +1703,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   }
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) { schedule(); return; }
-    if (doneMark) { doneMark = false; document.title = "원격 Claude"; }
+    if (doneMark) { doneMark = false; document.title = APP; }
     if (auth) load();
   });
   setInterval(function () {   // 실행 시간·PC 상태 글자만 1초마다 고침

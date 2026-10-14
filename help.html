@@ -153,6 +153,20 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 </table></div>
 <div class="note warn"><b>모르는 기록이 보이면</b> 바로 <span class="b">모두 해제</span>를 누르고, 비밀번호와 보안 코드를 바꾸세요. 화면 위에 "보안 알림 N건" 띠가 뜨면 <span class="b">확인</span>을 눌러 살펴보세요.</div>
 
+<h2 id="local">로컬 AI (local.html)</h2>
+<p>같은 계정으로 <b>treditor88.github.io/remote-claude/local.html</b> 을 열면, Claude 대신 연결한 PC의 <b>로컬 LLM</b>에게 묻습니다. Claude 사용량이 들지 않습니다.</p>
+<div class="tbl"><table>
+<tr><th>모델</th><th>언제</th></tr>
+<tr><td>빠름 · Qwen 35B</td><td>요약·번역·문장 다듬기·사진 받아 적기. 몇 초 안에 답합니다.</td></tr>
+<tr><td>깊게 · Flash-Next 125B</td><td>생각이 필요한 질문. 생각한 뒤 답해서 1~3분 걸립니다.</td></tr>
+</table></div>
+<ul>
+<li>글과 사진만 주고받습니다. 파일을 읽거나 명령을 실행하지는 못합니다.</li>
+<li>대화마다 앞 내용을 기억합니다(PC의 <code>remote-claude-inbox\local\</code> 에 저장). 로컬 AI 대화는 원격 Claude 목록에 안 보이고, 반대도 마찬가지입니다.</li>
+<li>위쪽 표시가 <b>로컬 AI 켜짐/꺼짐</b>입니다. 다른 작업이 로컬 LLM을 쓰고 있으면 "차례를 기다리는 중"이 뜨고, 그동안에도 <span class="b">중지</span>할 수 있습니다.</li>
+<li>틀릴 때가 있으니 중요한 사실은 확인하세요.</li>
+</ul>
+
 <h2 id="s7">7. 홈 화면에 추가</h2>
 <p>앱처럼 아이콘으로 열 수 있습니다.</p>
 <ul>
