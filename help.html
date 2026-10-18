@@ -179,6 +179,7 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-
 <tr><th>상황</th><th>해결</th></tr>
 <tr><td>계속 "대기"에서 안 넘어가요</td><td>맨 위가 PC 꺼짐이면 PC 를 켜세요. 켜지면 쌓인 요청부터 실행합니다. "1분 넘게 기다리는 요청" 띠가 계속 뜨면 PC 의 다리 창이 닫힌 것입니다. 그 PC 에서 다리를 다시 실행하거나 <code>--install</code> 로 자동 실행을 켜 두세요. 아직 연결한 PC 가 없다면 먼저 <a href="#pc">내 PC 연결하기</a>를 하세요.</td></tr>
 <tr><td>"허용 안 된 폴더"로 막혔어요</td><td>설정 → <b>작업 폴더</b>에서 그 폴더를 고르세요. 명령이 안 된다고 하면 같은 곳에서 <b>명령 실행</b>을 켜세요. 폴더를 바꾸면 그 대화는 이전 기억 없이 새로 시작할 수 있습니다.</td></tr>
+<tr><td>다른 계정을 <b>내 PC</b>에 연결하고 싶어요</td><td>그 계정의 연결 코드로 다리를 <b>따로 만든 폴더</b>에서 <code>--locked</code> 를 붙여 실행하세요(예: <code>python D:\rc-guest\bridge\remote_claude.py --dir D:\rc-guest\work --locked</code>). 잠금 다리는 사이트 설정과 상관없이 작업 폴더 밖·명령 실행·위험 허용·웹 읽기·Claude 앱으로 보내기를 막고, 작업 폴더가 다리 폴더나 내 프로젝트와 겹치면 시작하지 않습니다. 요청은 이 PC 에 로그인된 Claude 계정 사용량으로 실행됩니다.</td></tr>
 <tr><td>"PC 다리가 옛 버전"이라고 나와요</td><td>그 PC 에서 다리 파일(remote_claude.py, rc_guard.py)을 새로 받아 다시 켜세요(<a href="#pc">내 PC 연결하기</a>의 명령을 다시 실행).</td></tr>
 <tr><td>오류로 끝났어요</td><td>작업 기록을 펼쳐 마지막 줄을 봅니다. <span class="b">다시 쓰기</span>로 고쳐 보내세요.</td></tr>
 <tr><td>너무 오래 걸려요</td><td><span class="b">중지</span> → <span class="b">멈추기</span>. 일을 작게 나눠 다시 시키세요.</td></tr>

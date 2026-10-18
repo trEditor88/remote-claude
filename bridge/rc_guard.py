@@ -246,7 +246,8 @@ def limit_dirs():
 
 def allowed(full, dirs):
     """들어가도 되는 곳: 고른 폴더 + 임시 폴더 + 계획 파일(워커는 계획 파일을 쓰지 않으므로 빼고, TEMP 는 다리가 워커 전용 하위 폴더로 줌)."""
-    return any(inside(full, z) for z in list(dirs) + [TEMP] + ([] if WORKER else [PLANS]) if z)
+    # 잠금 다리(RC_LOCKED=1, 남의 계정을 내 PC 에 연결)는 내 계획 파일도 못 보게 뺀다
+    return any(inside(full, z) for z in list(dirs) + [TEMP] + ([] if WORKER or os.environ.get('RC_LOCKED') == '1' else [PLANS]) if z)
 
 
 # 작업 폴더 제한 중에 쓸 수 있는 도구(모르는 도구·MCP·LSP·Skill 은 경로를 확인할 수 없으므로 막는다)
@@ -264,6 +265,8 @@ def check_dirs(tool, inp, cwd, dirs):
         return '명령 실행 꺼짐', tool   # 사이트 설정에서 명령 실행을 끈 요청
     if tool not in LIMIT_TOOLS:
         return '허용 안 된 도구', tool
+    if tool == 'WebFetch' and os.environ.get('RC_LOCKED') == '1':
+        return '허용 안 된 도구', tool   # 잠금 다리: 이 PC 의 로컬 서버에 닿지 못하게
     if tool in ('Bash', 'PowerShell'):
         # 다리가 Claude 를 고른 폴더에서 켜고(--add-dir), Claude Code 가 셸 위치를 그 폴더들 안으로 되돌린다. 여기선 한 번 더 확인
         at_root = os.path.normcase(os.path.realpath(cwd)) == os.path.normcase(os.path.realpath(ROOT))   # 워커는 D:\AI_HEO 에서 시작

@@ -16,7 +16,7 @@
   고른 폴더 첫째를 실행 위치로, 나머지는 --add-dir 로 주고, 보호 장치(rc_guard.py)에 RC_DIRS 로 넘겨 밖을 막는다.
   ['*'] = 작업 폴더 전체, 비어 있으면 사진 받는 폴더(remote-claude-inbox)에서 대화만. 서버는 v2 가 아닌 다리에 요청을 주지 않는다.
 """
-import base64, glob, json, os, queue, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request
+import base64, hashlib, glob, json, os, queue, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request
 
 # 두 가지로 쓴다
 #  - 관리자 PC(D:\AI_HEO\tools): study-helper/sync.json 의 워커 키로 관리자 계정 요청을 받고, 작업 폴더는 D:\AI_HEO
@@ -42,16 +42,23 @@ def load_conf(argv):
     if os.path.exists(CONF):
         try:
             conf = json.load(open(CONF, encoding='utf-8'))
-        except Exception:
-            conf = {}
+            if not isinstance(conf, dict):
+                raise ValueError('not an object')
+        except Exception as e:   # 깨진 설정으로 잠금이 풀리거나 관리자 키로 바뀌지 않게 시작하지 않는다
+            raise SystemExit(f'설정 파일을 읽지 못했어요({type(e).__name__}): {CONF}\n고치거나 지우고 다시 연결하세요.')
     changed = False
     for k, flag in (('key', '--key'), ('dir', '--dir'), ('url', '--url')):
         v = arg(flag)
         if v:
             conf[k] = os.path.abspath(v) if k == 'dir' else v.strip()
             changed = True
+    # --locked: 이 PC 주인이 거는 상한(남의 계정을 내 PC 에 연결할 때). 사이트에서 무엇을 골라도
+    # 작업 폴더 밖 금지·명령 실행 끔·위험 허용 끔·API 대체 안 씀. 한 번 켜면 remote_claude.json 을 고쳐야만 풀림
+    if '--locked' in argv and not conf.get('locked'):
+        conf['locked'] = True
+        changed = True
     # 다른 사람 PC 처음 실행: 연결 코드를 명령줄에 쓰면 PowerShell 기록에 남으므로 여기서 묻는다(입력이 화면에 안 보임)
-    if not conf.get('key') and not os.path.exists(LEGACY) and __name__ == '__main__' and sys.stdin and sys.stdin.isatty():
+    if not conf.get('key') and (conf.get('locked') or not os.path.exists(LEGACY)) and __name__ == '__main__' and sys.stdin and sys.stdin.isatty():
         import getpass
         k = getpass.getpass('원격 Claude 사이트의 연결 코드를 붙여 넣고 Enter (화면에 안 보여요): ').strip()
         if k:
@@ -60,6 +67,9 @@ def load_conf(argv):
     if changed:
         with open(CONF, 'w', encoding='utf-8') as f:
             json.dump(conf, f, ensure_ascii=False, indent=2)
+    LOCKED[0] = bool(conf.get('locked'))
+    if LOCKED[0] and not conf.get('key'):   # 잠금 다리는 관리자 키(sync.json)로 내려가지 않는다
+        return conf.get('url') or DEFAULT_API, '', os.path.abspath(conf.get('dir') or HERE), False
     if conf.get('key'):
         return conf.get('url') or DEFAULT_API, conf['key'], os.path.abspath(conf.get('dir') or HERE), False
     if os.path.exists(LEGACY):
@@ -68,7 +78,41 @@ def load_conf(argv):
     return DEFAULT_API, '', HERE, False
 
 
+LOCKED = [False]
 API, KEY, ROOT, LEGACY_MODE = load_conf(sys.argv)
+LOCKED = LOCKED[0]
+if LOCKED:
+    AF = None   # 잠금 다리는 이 PC 의 API 키로 대신 실행하지 않는다(남의 요청에 내 돈이 나가지 않게)
+
+
+def locked_problem():
+    """잠금 다리를 시작하면 안 되는 이유('' = 괜찮음). 작업 폴더가 다리 폴더와 겹치면 Claude 가 다리·보호 장치 옆에
+    json.py 같은 파일을 심어 다음 실행 때 PC 주인 권한으로 돌릴 수 있고, 관리자 프로젝트와 겹치면 그 파일·비밀에 닿는다."""
+    if not LOCKED:
+        return ''
+    if LEGACY_MODE:
+        return '잠금 다리가 관리자 키로 시작하려 해요. remote_claude.json 에 연결 코드(key)를 넣어 주세요.'
+    nc = lambda p: os.path.normcase(os.path.realpath(p))
+    root, here = nc(ROOT), nc(HERE)
+    if root == here or root.startswith(here + os.sep) or here.startswith(root + os.sep):
+        return '작업 폴더(--dir)가 다리 폴더와 겹쳐요. 다리 폴더 밖의 다른 폴더를 정해 주세요.'
+    p = root
+    while True:   # 작업 폴더 자신·위 폴더·바로 아래 폴더에 관리자 프로젝트(study-helper/sync.json)가 있으면 거절
+        if os.path.exists(os.path.join(p, 'study-helper', 'sync.json')):
+            return '작업 폴더가 관리자 프로젝트 폴더와 겹쳐요. 따로 만든 빈 폴더를 정해 주세요.'
+        up = os.path.dirname(p)
+        if up == p:
+            break
+        p = up
+    try:
+        if any(os.path.exists(os.path.join(root, n, 'study-helper', 'sync.json')) for n in os.listdir(root)):
+            return '작업 폴더 안에 관리자 프로젝트 폴더가 있어요. 따로 만든 빈 폴더를 정해 주세요.'
+    except OSError:
+        pass
+    return ''
+# 한 PC 에 다리를 여러 개(관리자 다리 + 남의 계정 다리) 띄울 수 있게, 중복 실행 확인 포트와 자동 실행 바로가기를 다리 폴더마다 따로
+LOCK_PORT = 47213 if LEGACY_MODE else 47300 + int(hashlib.sha1(os.path.normcase(HERE).encode('utf-8')).hexdigest()[:6], 16) % 600
+LNK_NAME = '원격 Claude 다리.lnk' if LEGACY_MODE else f'원격 Claude 다리 ({os.path.basename(HERE)}).lnk'
 TIMEOUT_S = 0       # 0 = 시간 제한 없음(2026-10-09 사용자 지시). 멈추려면 사이트의 '중지'
 INBOX = os.path.join(ROOT, 'remote-claude-inbox')
 EXT = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'}
@@ -150,7 +194,7 @@ def claude_exe():
 def child_env():
     """claude 에 넘길 환경변수. ANTHROPIC_API_KEY 가 있으면 /login 계정 대신 그 키를 써서
     'Invalid API key' 로 실패하므로 뺀다. Claude 앱 세션 안에서 다리를 켠 경우의 세션 변수도 뺀다."""
-    drop = ('ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE') if LEGACY_MODE else ('CLAUDECODE',)   # 다른 사람 PC 는 API 키로 쓸 수도 있어 그대로 둠
+    drop = ('ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE') if LEGACY_MODE or LOCKED else ('CLAUDECODE',)   # 잠금 다리: 이 PC 의 키로 남의 요청이 과금되지 않게   # 다른 사람 PC 는 API 키로 쓸 수도 있어 그대로 둠
     env = {k: v for k, v in os.environ.items()
            if k not in drop and not k.startswith(('CLAUDE_CODE_', 'CLAUDE_AGENT_SDK'))}
     env.update(PYTHONUTF8='1', PYTHONIOENCODING='utf-8')   # 보호 훅·파이썬 명령이 한글을 cp949 로 읽다 고장 나지 않게
@@ -214,7 +258,8 @@ def job_dirs(job):
     """(실행 위치, 추가 폴더 목록, RC_DIRS 값). 고른 폴더가 지금 없으면 빼고, 하나도 없으면 빈 대화 폴더에서 대화만."""
     d = job.get('dirs')
     if d == ['*']:
-        return ROOT, [], '*'
+        # 잠금 다리: '전체' 도 작업 폴더 안으로만(제한 없음이 아니라 작업 폴더 전체를 고른 것으로)
+        return (ROOT, [], json.dumps([ROOT])) if LOCKED else (ROOT, [], '*')
     names = [n for n in (d if isinstance(d, list) else []) if isinstance(n, str) and n in folder_list()]
     paths = [os.path.join(ROOT, n) for n in names]
     files = job_files_dir(job)
@@ -349,17 +394,20 @@ def _run(job, fresh=False, api=None):
     cwd, extra_dirs, rc_dirs = job_dirs(job)
     cmd += ['--settings', guard_settings()]
     limited = rc_dirs != '*'
-    no_shell = limited and not job.get('shell')
+    no_shell = limited and (LOCKED or not job.get('shell'))   # 잠금 다리는 명령 실행을 늘 끔
     if limited:   # MCP 서버를 붙이지 않는다(파일·터미널을 다루는 MCP 로 폴더 제한을 돌아가지 못하게)
         cmd += ['--strict-mcp-config']
-    if no_shell:   # 명령 실행을 끈 경우: 명령 도구를 아예 빼서 폴더 밖으로 나갈 길을 없앤다(보호 장치도 RC_SHELL=0 으로 한 번 더 막음)
-        cmd += ['--disallowedTools', 'Bash', 'PowerShell', 'Monitor']
+    # 명령 실행을 끈 경우: 명령 도구를 아예 빼서 폴더 밖으로 나갈 길을 없앤다(보호 장치도 RC_SHELL=0 으로 한 번 더 막음)
+    # 잠금 다리: 웹 읽기는 이 PC 의 로컬 서버(llama-swap·허브 등)에도 닿으므로 뺀다(훅도 RC_LOCKED 로 막음). 한 번의 --disallowedTools 로 묶는다
+    deny = (['Bash', 'PowerShell', 'Monitor'] if no_shell else []) + (['WebFetch'] if LOCKED else [])
+    if deny:
+        cmd += ['--disallowedTools'] + deny
     for d in extra_dirs:
         cmd += ['--add-dir', d]
     # 임시 폴더도 요청마다 따로(다른 세션의 임시 파일·보호 장치 기록을 못 보게). 끝나면 지운다
     job_tmp = os.path.join(os.environ.get('TEMP', ROOT), 'rc_jobs', str(job.get('id') or 'x'))
     os.makedirs(job_tmp, exist_ok=True)
-    env = dict(child_env(), RC_GUARD_LOG=guard_log, RC_ALLOW_DANGER='1' if job.get('allow') else '0', RC_ROOT=ROOT, RC_DIRS=rc_dirs, RC_SHELL='0' if no_shell else '1')
+    env = dict(child_env(), RC_GUARD_LOG=guard_log, RC_LOCKED='1' if LOCKED else '0', RC_ALLOW_DANGER='1' if job.get('allow') and not LOCKED else '0', RC_ROOT=ROOT, RC_DIRS=rc_dirs, RC_SHELL='0' if no_shell else '1')
     if limited:
         env.update(TEMP=job_tmp, TMP=job_tmp)
     if api:   # API 키로 실행(apiKeyHelper, 키는 환경변수에 안 넣음): 그날 남은 예산만큼만 쓰게 묶는다
@@ -832,7 +880,8 @@ def handle(job):
         res, claim = {'result': '', 'error': '', 'sec': 0, 'canceled': True}, None
     else:
         try:
-            res = (open_in_app(job) if job.get('mode') == 'open' else run_local(job) if job.get('model') in LOCAL_MODELS else run(job))
+            res = ({'result': '', 'error': '이 PC 는 잠금 다리라 Claude 앱으로 보내기를 쓸 수 없어요.', 'sec': 0} if job.get('mode') == 'open' and LOCKED else
+                   open_in_app(job) if job.get('mode') == 'open' else run_local(job) if job.get('model') in LOCAL_MODELS else run(job))
         except Exception as e:
             res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
         finally:
@@ -859,7 +908,7 @@ def install():
     """로그인하면 창 없이 자동 실행(시작프로그램 바로가기) + 지금 바로 켜기. Windows 전용."""
     pyw = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')
     pyw = pyw if os.path.exists(pyw) else sys.executable
-    lnk = os.path.join(os.environ.get('APPDATA', ''), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', '원격 Claude 다리.lnk')
+    lnk = os.path.join(os.environ.get('APPDATA', ''), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', LNK_NAME)
     q = lambda s: s.replace("'", "''")
     ps = (f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{q(lnk)}');$s.TargetPath='{q(pyw)}';"
           f"$s.Arguments='\"{q(os.path.abspath(__file__))}\"';$s.WorkingDirectory='{q(HERE)}';$s.Description='원격 Claude 다리';$s.Save()")
@@ -875,18 +924,21 @@ if __name__ == '__main__':
         sys.exit(1)
     if not os.path.isdir(ROOT):
         print('작업 폴더가 없어요:', ROOT, '\n  python remote_claude.py --dir <있는 폴더> 로 다시 정하세요.'); sys.exit(1)
+    if locked_problem():
+        print('잠금 다리를 시작하지 않았어요:', locked_problem()); sys.exit(1)
     if '--install' in sys.argv:
         install(); sys.exit(0)
     if '--once' in sys.argv:
         once(); sys.exit(0)
     lock = socket.socket()
     try:
-        lock.bind(('127.0.0.1', 47213))   # 하나만 실행(프로세스가 끝나면 자동으로 풀림)
+        lock.bind(('127.0.0.1', LOCK_PORT))   # 다리 폴더마다 하나만 실행(프로세스가 끝나면 자동으로 풀림)
     except OSError:
         print('이미 실행 중입니다.'); sys.exit(0)
     if sys.stdout is None:   # pythonw(창 없음): 기록을 파일로
         sys.stdout = sys.stderr = open(os.path.join(HERE, 'remote_claude.log'), 'a', encoding='utf-8', buffering=1)
-    print(time.strftime('%Y-%m-%d %H:%M:%S'), '원격 Claude 다리 시작:', API, '·', claude_exe(), '· 작업 폴더', ROOT, flush=True)
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '원격 Claude 다리 시작:', API, '·', claude_exe(), '· 작업 폴더', ROOT,
+          '· 잠금(작업 폴더 밖·명령·위험 허용·웹 읽기 막음)' if LOCKED else '', '· 포트', LOCK_PORT, flush=True)
     if not LEGACY_MODE and sys.stdout.isatty():
         print('이 창을 닫으면 멈춰요. 자동으로 켜려면: python remote_claude.py --install', flush=True)
     BOOT = True
