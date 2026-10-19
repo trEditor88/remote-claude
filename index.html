@@ -1437,12 +1437,12 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     Object.keys(els).forEach(function (k) { if (!keep[k]) delete els[k]; });
   }
 
-  /* ── 불러오기: 실행 중이면 3초, 다른 대화가 실행 중이면 5초, 아니면 30초마다(탭을 숨기면 쉼) ── */
+  /* ── 불러오기: 실행 중이면 1.5초, 다른 대화가 실행 중이면 5초, 아니면 30초마다(탭을 숨기면 쉼) ── */
   function schedule(err) {
     clearTimeout(pollTimer);
     if (!auth) return;
     var mine = items.some(function (x) { return ACTIVE[x.status]; }), any = threads.some(function (t) { return t.active; });
-    var ms = mine ? 3000 : any ? 5000 : 30000;
+    var ms = mine ? 1500 : any ? 5000 : 30000;
     if (err) ms = Math.max(ms, 10000);
     if (document.hidden) { if (!any) return; ms = Math.max(ms, 15000); }
     pollTimer = setTimeout(load, ms);
