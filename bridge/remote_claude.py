@@ -368,6 +368,10 @@ def run(job, fresh=False):
         raise
     cost = res2.pop('costUsd', None)
     AF.settle(hid, cost, who)
+    try:   # 서버에 건수 알림(하루 5건 넘으면 관리자 알림). 실패해도 결과는 그대로
+        post({'action': 'apiFallbackLog', 'key': KEY, 'who': who[:40]}, timeout=15)
+    except Exception:
+        pass
     first = (res.get('danger') or '').strip()
     if first:   # 첫 시도에서 막은 기록도 사이트 경고에 남긴다
         res2['danger'] = (first + '\n' + (res2.get('danger') or '')).strip()[:2000]

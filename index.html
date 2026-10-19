@@ -963,7 +963,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 설정: 보안 코드·로그인 유지·믿는 기기·보안 기록 ── */
   var EV = { login: "로그인", login_nocode: "로그인 (보안 코드 없음)", login_new_device: "새 기기 로그인 (보안 코드 확인)", login_fail: "로그인 실패", locked: "너무 많이 틀려 잠김",
     new_device: "새 기기·장소에서 로그인 시도", code_fail: "보안 코드 틀림", code_set: "보안 코드 정함", code_changed: "보안 코드 바꿈", code_change_fail: "보안 코드 바꾸기 실패",
-    trust_reset: "믿는 기기 모두 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", app_open: "Claude 앱으로 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
+    trust_reset: "믿는 기기 모두 해제", trust_del: "믿는 기기 하나 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", app_open: "Claude 앱으로 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
   var EV_BAD = { dirs_set: 1, bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
   function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
     var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {}, nums = [];
@@ -1177,7 +1177,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         });
       };
       var s3 = sec("믿는 기기"), r3 = el("div", "set-row"), b3 = el("button", "btn-sm");
-      r3.appendChild(el("p", null, "보안 코드로 확인한 기기 " + r.devices + "대 · 지금 로그인 " + r.sessions + "곳"));
+      r3.appendChild(el("p", null, "보안 코드로 확인한 기기 " + r.devices + "대 · 지금 로그인 " + r.sessions + "곳 · 확인 후 90일 지나면 다시 물어요"));
       b3.type = "button"; b3.style.color = "var(--red)"; b3.appendChild(ic("trash")); b3.appendChild(document.createTextNode("모두 해제"));
       b3.onclick = function () {
         dialog({ title: "믿는 기기를 모두 해제할까요?", text: "이 기기를 뺀 다른 기기는 모두 로그아웃되고, 다음 로그인부터 모든 기기에서 보안 코드를 다시 물어요.", ok: "모두 해제", danger: true }).then(function (v) {
@@ -1186,6 +1186,30 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         });
       };
       r3.appendChild(b3); s3.appendChild(r3);
+      // 믿는 기기·IP 대역 목록 + 하나씩 해제(90일 지나면 저절로 만료)
+      var tl = el("ul", "ev"); tl.appendChild(el("li", null, "불러오는 중…")); s3.appendChild(tl);
+      var loadTrust = function () {
+        api({ action: "rcTrustList", device: deviceId() }).then(function (t) {
+          tl.textContent = "";
+          if (!t.ok) { tl.appendChild(el("li", null, errMsg(t))); return; }
+          if (!t.items.length) { tl.appendChild(el("li", null, "믿는 기기가 없어요. 다음 로그인 때 보안 코드를 물어요.")); return; }
+          t.items.forEach(function (x) {
+            var li = el("li"), row = el("div", "set-row"), info = el("span", "m");
+            var name = x.kind === "dev" ? "기기 " + x.id : "장소(IP 대역) " + x.id;
+            row.appendChild(el("span", "k", name + (x.current ? " · 지금 이것" : "")));
+            info.textContent = ["확인 " + fmtFull(x.at), fmtFull(x.expAt) + " 만료", x.kind === "dev" && x.sessions ? "로그인 " + x.sessions + "곳" : ""].filter(Boolean).join(" · ");
+            var bx = el("button", "btn-sm"); bx.type = "button"; bx.style.color = "var(--red)"; bx.appendChild(document.createTextNode("해제"));
+            bx.onclick = function () {
+              dialog({ title: name + " 를 해제할까요?", text: x.kind === "dev" ? "이 기기의 로그인이 끝나고, 다음 로그인 때 보안 코드를 다시 물어요." + (x.current ? " (지금 이 창은 열려 있어요)" : "") : "이 장소에서 다음 로그인 때 보안 코드를 다시 물어요.", ok: "해제", danger: true }).then(function (v) {
+                if (!v) return;
+                api({ action: "rcTrustDel", kind: x.kind, id: x.id, device: deviceId(), ua: navigator.userAgent }).then(function (q) { toast(q.ok ? "해제했어요" + (q.loggedOut ? " · " + q.loggedOut + "곳 로그아웃" : "") : errMsg(q)); loadTrust(); });
+              });
+            };
+            row.appendChild(bx); li.appendChild(row); li.appendChild(info); tl.appendChild(li);
+          });
+        });
+      };
+      loadTrust();
       var s4 = sec("보안 기록 (최근 40개)"), ul = el("ul", "ev");
       if (!r.events.length) ul.appendChild(el("li", null, "아직 기록이 없어요."));
       r.events.forEach(function (e) {
