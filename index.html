@@ -32,9 +32,9 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
 <style>
 /* Light 하우스 토큰(.claude/웹사이트_제작_통합_프롬프트.md) — 단일 액센트 blue, 그림자 없음, 웨이트 400/600/700 */
-:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--hairline:rgba(0,0,0,.10);--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--green:#15803D;--red:#C0392B;--yellow:#B7791F;--on-blue:#FFFFFF;--scrim:rgba(0,0,0,.4);
+:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--hairline:rgba(0,0,0,.10);--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--green:#15803D;--red:#C0392B;--yellow:#FACC15;--on-blue:#FFFFFF;--scrim:rgba(0,0,0,.4);
   --r-sm:8px;--r-md:11px;--r-lg:18px;--r-pill:9999px;--top:56px;--mono:ui-monospace,"Cascadia Mono",Consolas,"D2Coding",monospace}
-@media (prefers-color-scheme: dark){:root{--canvas:#000000;--parchment:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--hairline:rgba(255,255,255,.12);--border:#3A3A3C;--blue:#4A9EFF;--blue-focus:#4A9EFF;--green:#4CC38A;--red:#FF6B5B;--yellow:#F2C94C;--on-blue:#000000;--scrim:rgba(0,0,0,.6)}}
+@media (prefers-color-scheme: dark){:root{--canvas:#000000;--parchment:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--hairline:rgba(255,255,255,.12);--border:#3A3A3C;--blue:#4A9EFF;--blue-focus:#4A9EFF;--green:#4CC38A;--red:#FF6B5B;--yellow:#FDE047;--on-blue:#000000;--scrim:rgba(0,0,0,.6)}}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 body{line-height:1.6;font-size:1rem}
@@ -106,16 +106,14 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .trow:hover,.trow.cur{background:var(--parchment)}
 .thread{flex:1;min-width:0;text-align:left;background:none;border:0;border-radius:var(--r-md);padding:9px 4px 9px 12px;display:flex;flex-direction:column;gap:2px;min-height:44px}
 .thread-title{font-size:.9375rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.trow.cur .thread-title{font-weight:600}
 .thread-meta{font-size:.8125rem;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .thread-meta .tag{display:inline-flex;align-items:center;gap:3px}
-.thread-run{color:var(--blue);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.thread-run{color:var(--blue);display:inline-flex;align-items:center;gap:5px}
 .thread-run .dot{background:var(--blue);animation:pulse 1.4s ease-in-out infinite}
 .thread-run.st-wait{color:var(--muted)} .thread-run.st-wait .dot{background:var(--muted);animation:none}
 .thread-run.st-bad{color:var(--red)} .thread-run.st-bad .dot{background:var(--red);animation:none}
 .thread-run.st-new{color:var(--ink)} .thread-run.st-new .dot{background:var(--yellow);animation:none}
-.trow.unread .thread-title{font-weight:600}
-.trow.edit{box-shadow:inset 0 0 0 1px var(--blue)}
+.trow.edit .thread-title{font-weight:600}
 .fold-dot{width:7px;height:7px;margin-right:2px}
 .fold-dot.st-new{background:var(--yellow)} .fold-dot.st-bad{background:var(--red)}
 @media (prefers-reduced-motion:reduce){.thread-run .dot{animation:none}}
