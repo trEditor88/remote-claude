@@ -32,9 +32,9 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
 <style>
 /* Light 하우스 토큰(.claude/웹사이트_제작_통합_프롬프트.md) — 단일 액센트 blue, 그림자 없음, 웨이트 400/600/700 */
-:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--hairline:rgba(0,0,0,.10);--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--green:#15803D;--red:#C0392B;--on-blue:#FFFFFF;--scrim:rgba(0,0,0,.4);
+:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--hairline:rgba(0,0,0,.10);--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--green:#15803D;--red:#C0392B;--yellow:#B7791F;--on-blue:#FFFFFF;--scrim:rgba(0,0,0,.4);
   --r-sm:8px;--r-md:11px;--r-lg:18px;--r-pill:9999px;--top:56px;--mono:ui-monospace,"Cascadia Mono",Consolas,"D2Coding",monospace}
-@media (prefers-color-scheme: dark){:root{--canvas:#000000;--parchment:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--hairline:rgba(255,255,255,.12);--border:#3A3A3C;--blue:#4A9EFF;--blue-focus:#4A9EFF;--green:#4CC38A;--red:#FF6B5B;--on-blue:#000000;--scrim:rgba(0,0,0,.6)}}
+@media (prefers-color-scheme: dark){:root{--canvas:#000000;--parchment:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--hairline:rgba(255,255,255,.12);--border:#3A3A3C;--blue:#4A9EFF;--blue-focus:#4A9EFF;--green:#4CC38A;--red:#FF6B5B;--yellow:#F2C94C;--on-blue:#000000;--scrim:rgba(0,0,0,.6)}}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 body{line-height:1.6;font-size:1rem}
@@ -110,7 +110,15 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .thread-meta{font-size:.8125rem;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .thread-meta .tag{display:inline-flex;align-items:center;gap:3px}
 .thread-run{color:var(--blue);font-weight:600;display:inline-flex;align-items:center;gap:5px}
-.thread-run .dot{background:var(--blue)}
+.thread-run .dot{background:var(--blue);animation:pulse 1.4s ease-in-out infinite}
+.thread-run.st-wait{color:var(--muted)} .thread-run.st-wait .dot{background:var(--muted);animation:none}
+.thread-run.st-bad{color:var(--red)} .thread-run.st-bad .dot{background:var(--red);animation:none}
+.thread-run.st-new{color:var(--ink)} .thread-run.st-new .dot{background:var(--yellow);animation:none}
+.trow.unread .thread-title{font-weight:600}
+.trow.edit{box-shadow:inset 0 0 0 1px var(--blue)}
+.fold-dot{width:7px;height:7px;margin-right:2px}
+.fold-dot.st-new{background:var(--yellow)} .fold-dot.st-bad{background:var(--red)}
+@media (prefers-reduced-motion:reduce){.thread-run .dot{animation:none}}
 .tmore{width:36px;height:36px;margin-right:4px;display:grid;place-items:center;flex-shrink:0;background:none;border:0;border-radius:var(--r-sm);color:var(--muted);opacity:0;transition:opacity .15s ease,background-color .15s ease}
 .tmore:hover{background:var(--canvas);color:var(--ink)}
 .trow:hover .tmore,.trow.cur .tmore,.folder-row:hover .tmore,.tmore:focus-visible,.tmore[aria-expanded="true"]{opacity:1}
@@ -495,8 +503,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
               <button class="attach" id="attach" type="button" aria-label="사진 붙이기" title="사진 붙이기(붙여넣기·끌어놓기도 돼요)"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-image"/></svg></button>
               <input type="file" id="fileIn" accept="image/*" multiple hidden>
               <div class="seg" role="radiogroup" aria-label="권한">
-                <label><input type="radio" name="mode" value="" checked aria-label="수정 허용"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-edit"/></svg><i class="tl">수정 허용</i></span></label>
-                <label><input type="radio" name="mode" value="plan" aria-label="읽기만"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-eye"/></svg><i class="tl">읽기만</i></span></label>
+                <label><input type="radio" name="mode" value="" aria-label="수정 허용"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-edit"/></svg><i class="tl">수정 허용</i></span></label>
+                <label><input type="radio" name="mode" value="plan" checked aria-label="읽기만"><span><svg class="ic ic-xs" aria-hidden="true"><use href="#i-eye"/></svg><i class="tl">읽기만</i></span></label>
               </div>
               <label class="sr-only" for="model">모델</label>
               <select class="sel" id="model">
@@ -570,12 +578,17 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var pendingFolder = "";   // '이 폴더에 새 대화'로 시작한 새 대화가 들어갈 폴더
   var skew = 0, pcSeenAt = -1, seq = 0, pollTimer = 0, toastTimer = 0, prevAct = null, doneMark = false, justMoved = false, sending = false;
   var threadSig = "", threadsDirty = false, menuAnchor = null, folds = new Set();
-  var opts = { model: LOCAL ? "local-fast" : "", mode: "" };
+  var opts = { model: LOCAL ? "local-fast" : "" };
+  // 수정 허용('')/읽기만('plan')은 대화마다 따로: 이 기기에서 고른 값 { 대화 id: { m, at } } ("" = 아직 안 보낸 새 대화). 없으면 그 대화의 마지막 요청 모드, 그것도 없으면 읽기만
+  var MKEY = OKEY + ":modes", modes = {}, oldOpen = false, reading = {};
   var MAX_IMG = 4, pics = [], imgCache = {};   // pics = 보낼 사진 [{ name, data }], imgCache = 받아 온 사진 { id: data URL }
   try { auth = JSON.parse(localStorage.getItem(KEY) || sessionStorage.getItem(KEY) || "null"); } catch (e) {}   // 로그인 유지 = localStorage, 안 함 = sessionStorage(브라우저 닫으면 사라짐)
   var allowNext = false, challenge = "", dangerSeen = null;
   try { var saved = localStorage.getItem(TKEY); if (saved !== null) cur = saved; } catch (e) {}
-  try { var o = JSON.parse(localStorage.getItem(OKEY) || "{}"); if (MODEL_TAG[o.model] && o.model !== "opus" && /^local-/.test(o.model) === LOCAL) opts.model = o.model; if (o.mode === "plan") opts.mode = "plan"; } catch (e) {}
+  try { var o = JSON.parse(localStorage.getItem(OKEY) || "{}"); if (MODEL_TAG[o.model] && o.model !== "opus" && /^local-/.test(o.model) === LOCAL) opts.model = o.model; } catch (e) {}
+  try { var mo = JSON.parse(localStorage.getItem(MKEY) || "{}"); if (mo && typeof mo === "object") Object.keys(mo).forEach(function (k) { if (mo[k] && (mo[k].m === "" || mo[k].m === "plan")) modes[k] = { m: mo[k].m, at: Number(mo[k].at) || 0 }; }); } catch (e) {}
+  try { oldOpen = localStorage.getItem(OKEY + ":old") === "1"; } catch (e) {}
+  delete modes[""];
   try { JSON.parse(localStorage.getItem(FKEY) || "[]").forEach(function (n) { folds.add(String(n)); }); } catch (e) {}
 
   /* ── 작은 도구 ── */
@@ -624,6 +637,35 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function errMsg(r) { return (r && ERR[r.error]) || (r && r.error) || ERR.network; }
   function setCur(t) { cur = t; try { localStorage.setItem(TKEY, t); } catch (e) {} }
   function saveOpts() { try { localStorage.setItem(OKEY, JSON.stringify(opts)); } catch (e) {} }
+  function saveModes() { try { localStorage.setItem(MKEY, JSON.stringify(modes)); } catch (e) {} }
+  function threadMode(id) {
+    if (LOCAL) return "";
+    var o = modes[id || ""], t = null;
+    for (var i = 0; id && i < threads.length; i++) if (threads[i].thread === id) t = threads[i];
+    var srv = t && typeof t.mode === "string" ? t.mode : null;
+    if (o && (srv === null || o.at >= (t.modeAt || 0))) return o.m;   // 이 기기에서 고른 뒤로 다른 기기가 다른 모드로 보냈으면 그쪽을 따른다
+    return srv === null ? "plan" : srv;
+  }
+  function setMode(m) { modes[cur || ""] = { m: m, at: Date.now() + skew }; saveModes(); threadSig = ""; renderThreads(); renderHint(); }
+  function syncModeRadios() { var m = threadMode(cur); Array.prototype.forEach.call(document.querySelectorAll('input[name="mode"]'), function (r) { r.checked = r.value === m; }); }
+  /* 날짜 묶음(내 기기 자정 기준): 0 오늘 · 1 어제 · 2 지난 7일 · 3 지난 30일 · 4 1달 이상 */
+  var GROUPS = ["오늘", "어제", "지난 7일", "지난 30일", "1달 이상"], WD = "일월화수목금토";
+  function dayGroup(ts) { var a = new Date(); a.setHours(0, 0, 0, 0); var d = new Date(ts); d.setHours(0, 0, 0, 0); var n = Math.round((a - d) / 86400000); return n <= 0 ? 0 : n === 1 ? 1 : n <= 7 ? 2 : n <= 30 ? 3 : 4; }
+  function fmtShort(ts) { if (!ts) return ""; var d = new Date(ts), g = dayGroup(ts), hm = pad(d.getHours()) + ":" + pad(d.getMinutes()); return g === 0 ? hm : g === 1 ? "어제 " + hm : g === 2 ? WD[d.getDay()] + "요일 " + hm : (d.getMonth() + 1) + "월 " + d.getDate() + "일"; }
+  // 줄 상태: 실행 중(파랑) > 대기 중(회색) > 안 읽음 중 막힘·오류(빨강) > 완료·안 읽음(노랑). 보고 있는 대화는 읽은 것으로
+  function isUnread(t) { return !!t.unread && !(t.thread === cur && !document.hidden); }
+  function threadState(t) {
+    if (t.active) return t.running ? { cls: "", txt: "실행 중" } : { cls: "st-wait", txt: "대기 중" };
+    if (!isUnread(t)) return null;
+    return t.blocked ? { cls: "st-bad", txt: "막힘" } : t.failed ? { cls: "st-bad", txt: "오류" } : { cls: "st-new", txt: "완료" };
+  }
+  function markRead(t) {
+    if (!t || !t.unread || document.hidden) return;
+    t.unread = false; threadSig = "";
+    if (reading[t.thread] > Date.now() - 10000) return;   // 서버가 아직 반영 전이면 몇 초 동안은 다시 안 보냄
+    reading[t.thread] = Date.now();
+    api({ action: "rcRead", thread: t.thread });
+  }
   function saveFolds() { try { localStorage.setItem(FKEY, JSON.stringify(Array.from(folds))); } catch (e) {} }
   function pcOnline() { return pcSeenAt > 0 && serverNow() - pcSeenAt < 75000; }
   function nearBottom() { var d = document.documentElement; return d.scrollHeight - (window.scrollY + window.innerHeight) < 160; }
@@ -862,15 +904,15 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     });
   }
 
-  /* ── 빠른 작업: 한 번 눌러 새 대화로 실행(allow 가 있는 항목은 경고 확인 뒤) ── */
+  /* ── 빠른 작업: 한 번 눌러 새 대화로 실행(allow 가 있는 항목은 경고 확인 뒤). mode 를 안 적으면 읽기만, 명령을 실행해야 하는 항목만 mode: ""(수정 허용) ── */
   var QUICK = [
-    { i: "pulse", t: "상태 점검", p: ".\\check-project.ps1 -Online 을 실행하고 결과를 짧은 표로 요약해 줘. 문제가 있으면 원인과 고칠 방법도 알려 줘." },
-    { i: "check", t: "서버 테스트", p: "python smoke-test.py exam 과 python smoke-test.py seat 를 실행하고 결과를 요약해 줘. 실패가 있으면 원인만 찾아 줘(고치지는 말고)." },
+    { i: "pulse", t: "상태 점검", p: ".\\check-project.ps1 -Online 을 실행하고 결과를 짧은 표로 요약해 줘. 문제가 있으면 원인과 고칠 방법도 알려 줘.", mode: "" },
+    { i: "check", t: "서버 테스트", p: "python smoke-test.py exam 과 python smoke-test.py seat 를 실행하고 결과를 요약해 줘. 실패가 있으면 원인만 찾아 줘(고치지는 말고).", mode: "" },
     { i: "doc", t: "원격 Claude 기록 확인", p: "tools/remote_claude.log 의 최근 60줄을 읽고 오류나 이상한 점을 요약해 줘.", mode: "plan" }
   ];
   function runQuick(q) {
     function go(code) {
-      api({ action: "rcSubmit", prompt: q.p, model: opts.model, mode: q.mode || "", allow: !!q.allow, code: code || undefined }).then(function (r) {
+      api({ action: "rcSubmit", prompt: q.p, model: opts.model, mode: q.mode === "" ? "" : "plan", allow: !!q.allow, code: code || undefined }).then(function (r) {
         if (!r.ok) { toast(errMsg(r)); if (r.error === "need_setup") setupCode(false); return; }
         api({ action: "rcThread", thread: r.thread, title: "⚡ " + q.t });
         pendingFolder = ""; setCur(r.thread); threadSig = ""; justMoved = true; closeSide();
@@ -1259,12 +1301,15 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 사이드바: 고정됨 → 폴더(펼치기·접기) → 대화. 줄마다 ⋯ 메뉴 ── */
   function folderNames() { var s = {}; threads.forEach(function (t) { if (t.folder) s[t.folder] = 1; }); return Object.keys(s).sort(function (a, b) { return a.localeCompare(b, "ko"); }); }
   function threadRow(t, inPinned) {
-    var li = el("li", "trow" + (t.thread === cur ? " cur" : "")), b = el("button", "thread"), meta = el("span", "thread-meta"), more = el("button", "tmore");
+    var st = threadState(t), edit = !LOCAL && threadMode(t.thread) === "";
+    var li = el("li", "trow" + (t.thread === cur ? " cur" : "") + (st && !t.active ? " unread" : "") + (edit ? " edit" : "")), b = el("button", "thread"), meta = el("span", "thread-meta"), more = el("button", "tmore");
     b.type = "button"; if (t.thread === cur) b.setAttribute("aria-current", "true");
+    b.setAttribute("aria-label", (t.title || "(내용 없음)") + (st ? ", " + st.txt + (t.active ? "" : ", 안 읽음") : "") + (edit ? ", 수정 허용" : ""));
+    if (edit) b.title = "수정 허용 대화";
     b.appendChild(el("span", "thread-title", t.title || "(내용 없음)"));
-    if (t.active) { var a = el("span", "thread-run"); a.appendChild(el("span", "dot")); a.appendChild(document.createTextNode(t.running ? "실행 중" : "대기 중")); meta.appendChild(a); }
+    if (st) { var a = el("span", "thread-run" + (st.cls ? " " + st.cls : "")); a.appendChild(el("span", "dot")); a.appendChild(document.createTextNode(st.txt)); meta.appendChild(a); }
     if (inPinned && t.folder) { var f = el("span", "tag"); f.appendChild(ic("folder", "ic-xs")); f.appendChild(document.createTextNode(cut(t.folder, 12))); meta.appendChild(f); }
-    meta.appendChild(document.createTextNode(fmt(t.lastAt) + " · 요청 " + t.n + "개"));
+    meta.appendChild(document.createTextNode(fmtShort(t.lastAt) + " · 요청 " + t.n + "개"));
     b.appendChild(meta); b.onclick = function () { pick(t.thread); };
     more.type = "button"; more.setAttribute("aria-label", "‘" + cut(t.title, 20) + "’ 대화 메뉴"); more.setAttribute("aria-haspopup", "menu"); more.setAttribute("aria-expanded", "false");
     more.appendChild(ic("dots")); more.onclick = function () { toggleMenu(more, function () { return threadMenu(t); }); };
@@ -1272,7 +1317,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     return li;
   }
   function renderThreads() {
-    var sig = JSON.stringify([cur, threads, Array.from(folds)]);
+    var sig = JSON.stringify([cur, threads, Array.from(folds), modes, oldOpen, new Date().toDateString(), document.hidden]);
     if (sig === threadSig) return;
     if (!$("menu").hidden && menuAnchor && $("side").contains(menuAnchor)) { threadsDirty = true; return; }   // 메뉴가 열려 있으면 닫힌 뒤에
     threadSig = sig;
@@ -1292,7 +1337,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       var s = el("section", "sec"), row = el("div", "folder-row"), fb = el("button", "folder-btn"), more = el("button", "tmore"), ul = el("ul", "tlist folder-items");
       ul.id = "fold-" + k; ul.hidden = !open;
       fb.type = "button"; fb.setAttribute("aria-expanded", String(open)); fb.setAttribute("aria-controls", ul.id);
-      fb.appendChild(ic("chevron", "ic-sm chev")); fb.appendChild(ic("folder", "ic-sm fic")); fb.appendChild(el("span", "folder-name", name)); fb.appendChild(el("span", "folder-n", String(all.length)));
+      fb.appendChild(ic("chevron", "ic-sm chev")); fb.appendChild(ic("folder", "ic-sm fic")); fb.appendChild(el("span", "folder-name", name)); if (!open) foldDot(fb, mine); fb.appendChild(el("span", "folder-n", String(all.length)));
       fb.onclick = function () { if (folds.has(name)) folds.delete(name); else folds.add(name); saveFolds(); renderThreads(); };
       more.type = "button"; more.setAttribute("aria-label", "‘" + cut(name, 20) + "’ 폴더 메뉴"); more.setAttribute("aria-haspopup", "menu"); more.setAttribute("aria-expanded", "false");
       more.appendChild(ic("dots")); more.onclick = function () { toggleMenu(more, function () { return folderMenu(name, all.length); }); };
@@ -1301,7 +1346,29 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       mine.forEach(function (t) { ul.appendChild(threadRow(t)); });
       s.appendChild(ul); box.appendChild(s);
     });
-    if (loose.length) box.appendChild(section(pinned.length || names.length ? "대화" : "", null, loose));
+    var groups = [[], [], [], [], []];
+    loose.forEach(function (t) { groups[dayGroup(t.lastAt)].push(t); });
+    groups.forEach(function (list, g) {
+      if (!list.length) return;
+      if (g < 4) { box.appendChild(section(GROUPS[g], null, list)); return; }
+      // 1달 이상: 처음엔 접어 둔다(펼친 상태는 이 기기에 기억)
+      var s = el("section", "sec"), row = el("div", "folder-row"), fb = el("button", "folder-btn"), ul = el("ul", "tlist folder-items");
+      ul.id = "fold-old"; ul.hidden = !oldOpen; s.setAttribute("aria-label", GROUPS[g]);
+      fb.type = "button"; fb.setAttribute("aria-expanded", String(oldOpen)); fb.setAttribute("aria-controls", ul.id);
+      fb.appendChild(ic("chevron", "ic-sm chev")); fb.appendChild(el("span", "folder-name", GROUPS[g])); if (!oldOpen) foldDot(fb, list); fb.appendChild(el("span", "folder-n", String(list.length)));
+      fb.onclick = function () { oldOpen = !oldOpen; try { localStorage.setItem(OKEY + ":old", oldOpen ? "1" : "0"); } catch (e) {} renderThreads(); };
+      row.appendChild(fb); s.appendChild(row);
+      list.forEach(function (t) { ul.appendChild(threadRow(t)); });
+      s.appendChild(ul); box.appendChild(s);
+    });
+  }
+  // 접힌 묶음 안에 안 읽은 결과가 있으면 줄에 점 하나(빨강이 하나라도 있으면 빨강)
+  function foldDot(fb, list) {
+    var sts = list.map(threadState).filter(function (x) { return x && x.cls !== "" && x.cls !== "st-wait"; });
+    if (!sts.length) return;
+    var bad = sts.some(function (x) { return x.cls === "st-bad"; }), d = el("span", "dot fold-dot " + (bad ? "st-bad" : "st-new"));
+    d.setAttribute("role", "img"); d.setAttribute("aria-label", bad ? "막히거나 오류 난 결과 있음" : "안 읽은 결과 있음");
+    fb.appendChild(d);
   }
   function threadMenu(t) {
     var m = [
@@ -1423,7 +1490,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     $("title").textContent = t ? cut(t.title, 80) : "새 대화";
     $("convFolder").hidden = !folder; $("convFolderName").textContent = folder;
     $("convMenu").hidden = !t;
-    document.title = (doneMark ? "(완료) " : "") + APP;
+    var nNew = threads.filter(isUnread).length;
+    document.title = (nNew ? "(" + nNew + ") " : doneMark ? "(완료) " : "") + APP;
+    syncModeRadios();
     var none = !items.length;
     $("empty").hidden = !none || cur === null;
     $("list").hidden = none;
@@ -1477,9 +1546,10 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       pcSeenAt = r.pcSeenAt || 0;
       var allT = r.threads || [];
       threads = allT.filter(function (x) { return !!x.local === LOCAL; });
+      if (threads.length) { var gone = false; Object.keys(modes).forEach(function (k) { if (k && modes[k].at < Date.now() + skew - 86400000 && !allT.some(function (x) { return x.thread === k; })) { delete modes[k]; gone = true; } }); if (gone) saveModes(); }
       var t = typeof r.thread === "string" ? r.thread : (cur || "");
       // 다른 화면(원격 Claude ↔ 로컬 AI)의 대화가 골라졌으면 새 대화로
-      if (t && allT.some(function (x) { return x.thread === t; }) && !threads.some(function (x) { return x.thread === t; })) { t = ""; r.items = []; setCur(""); }
+      if (t && allT.some(function (x) { return x.thread === t; }) && !threads.some(function (x) { return x.thread === t; })) { t = ""; r.items = []; setCur(""); delete modes[""]; }
       if (t !== cacheThread) { cache = {}; cacheThread = t; }
       cur = t;
       var next = {}, missing = false;
@@ -1499,6 +1569,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       if (typeof r.keep === "boolean" && auth.keep !== r.keep) { auth.keep = r.keep; saveAuth(); }
       watchDanger();
       detectDone();
+      markRead(curThread());
       var stick = justMoved || nearBottom();
       render();
       if (stick && items.length) toBottom();   // 빈 대화(추천 화면)는 위에서부터 보이게
@@ -1510,11 +1581,12 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 동작 ── */
   function pick(t) {
     pendingFolder = "";
-    if (t !== cur) { setCur(t); justMoved = true; threadSig = ""; renderThreads(); var th = curThread(); $("title").textContent = th ? cut(th.title, 80) : "새 대화"; }
+    if (t !== cur) { setCur(t); justMoved = true; threadSig = ""; renderThreads(); var th = curThread(); $("title").textContent = th ? cut(th.title, 80) : "새 대화"; syncModeRadios(); }
     closeSide(); load();
   }
   function newConv(folder) {
     setCur(""); pendingFolder = typeof folder === "string" ? folder : ""; items = []; cache = {}; cacheThread = ""; threadSig = "";
+    delete modes[""]; saveModes();   // 새 대화는 늘 읽기만으로 시작
     render(); closeSide(); $("prompt").focus(); load();
   }
   function cancelJob(x, btn) {
@@ -1577,7 +1649,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function send() {
     var text = $("prompt").value.trim(); if ((!text && !pics.length) || sending || pics.some(function (p) { return !p.data; })) return;
     sending = true; updateSend(); $("sendHint").className = "comp-hint";
-    var body = { action: "rcSubmit", prompt: text, model: opts.model, mode: opts.mode, allow: allowNext };
+    var mode = threadMode(cur), body = { action: "rcSubmit", prompt: text, model: opts.model, mode: mode, allow: allowNext };
     if (allowNext) body.code = allowCode;
     if (pics.length) body.images = pics.map(function (p) { return { name: p.name, data: p.data }; });
     if (cur) body.thread = cur; else if (pendingFolder) body.folder = pendingFolder;
@@ -1589,7 +1661,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         if (r.error === "need_setup") setupCode(false);
         return;
       }
-      if (r.thread && r.thread !== cur) { setCur(r.thread); threadSig = ""; }
+      if (r.thread && r.thread !== cur) { if (!cur) { modes[r.thread] = { m: mode, at: Date.now() + skew }; delete modes[""]; saveModes(); } setCur(r.thread); threadSig = ""; }
       pendingFolder = ""; setAllow(false);
       $("prompt").value = ""; pics = []; renderPics(); grow(); updateSend(); justMoved = true;
       toast(pcOnline() ? "보냈어요. PC가 곧 시작해요" : "보냈어요. PC가 켜지면 실행돼요");
@@ -1672,8 +1744,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if ((e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") && !shiftHeld) { e.preventDefault(); setTimeout(send, 0); }
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="mode"]'), function (r) {
-    r.checked = r.value === opts.mode;
-    r.addEventListener("change", function () { if (r.checked) { opts.mode = r.value; saveOpts(); } });
+    r.checked = r.value === threadMode(cur);
+    r.addEventListener("change", function () { if (r.checked) setMode(r.value); });
   });
   if (LOCAL) {   // 로컬 AI 화면: 이름·안내를 바꾸고 Claude 전용 도구(권한·빠른 작업·위험 허용)를 숨긴다
     document.title = APP;
