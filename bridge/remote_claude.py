@@ -367,6 +367,8 @@ def run(job, fresh=False):
         AF.settle(hid, None, who)   # 비용을 모르면 잡아 둔 돈을 쓴 것으로
         raise
     cost = res2.pop('costUsd', None)
+    if cost is None and res2.get('error') and AF.is_api_limit(res2['error']):
+        cost = 0   # API 가 바로 거절(비용 없음) → 잡아 둔 돈을 다 쓴 것으로 치지 않음
     AF.settle(hid, cost, who)
     try:   # 서버에 건수 알림(하루 5건 넘으면 관리자 알림). 실패해도 결과는 그대로
         post({'action': 'apiFallbackLog', 'key': KEY, 'who': who[:40]}, timeout=15)
@@ -377,7 +379,14 @@ def run(job, fresh=False):
         res2['danger'] = (first + '\n' + (res2.get('danger') or '')).strip()[:2000]
     res2['progress'] = (f'구독 사용량 한도라 API 키로 다시 실행했어요(${float(cost or 0):.2f})\n' + (res2.get('progress') or ''))[:4000]
     if res2.get('error'):
-        res2['error'] = ('구독 한도 → API 재실행 실패: ' + res2['error'])[:300]
+        if AF.is_api_limit(res2['error']):   # API 자체도 한도(워크스페이스 지출 한도 등) → 30분 쉬고, 관리자 알림, 사용자 안내
+            AF.pause(res2['error'])
+            if AF.alert_once():
+              try: post({'action': 'pcAlert', 'key': KEY, 'kind': 'api', 'text': ('원격 Claude 요청을 API 로 다시 돌렸지만 API 도 한도로 거절했어요. 30분 동안 API 대체를 쉬어요: ' + res2['error'])[:300]}, timeout=15)
+              except Exception: pass
+            res2['error'] = ('%s (%s)' % ('AI API 사용 한도에 걸려 지금은 처리하지 못했어요. 30분쯤 뒤 다시 시도해 주세요(관리자에게 알렸어요).', res2['error']))[:300]
+        else:
+            res2['error'] = ('구독 한도 → API 재실행 실패: ' + res2['error'])[:300]
     return res2
 
 
@@ -846,6 +855,7 @@ def flush_pending():
 
 
 FOLDERS_SENT = [None, 0.0]
+KEY_BACKOFF = [0.0]   # 서버가 연결 코드를 거절(bad_key)하면 10분 동안 확인을 쉰다(취소된 코드로 15초마다 두드리지 않게)
 LLM_SENT, LLM_CHK = [None, 0.0], [None, 0.0]   # 로컬 LLM 상태: 마지막으로 보낸 값·시각 / 마지막 확인 값·시각
 BOOT = False   # 계속 실행할 때만 True: 첫 확인에서 서버가 '실행 중'으로 남은 옛 요청(다리가 꺼지며 끊긴 것)을 정리한다
 
@@ -853,6 +863,8 @@ BOOT = False   # 계속 실행할 때만 True: 첫 확인에서 서버가 '실�
 def take():
     """서버에서 요청 하나 받기(없으면 None). 같은 대화의 요청은 서버가 앞 요청이 끝난 뒤에만 넘긴다."""
     global BOOT
+    if time.time() < KEY_BACKOFF[0]:
+        return None
     flush_pending()
     body = {'action': 'rcTake', 'key': KEY, 'boot': BOOT, 'dir': ROOT, 'pc': socket.gethostname()[:40], 'v': BRIDGE_V}
     folders = folder_list()
@@ -869,6 +881,10 @@ def take():
     if 'llm' in body:
         LLM_SENT[:] = [body['llm'], now]
     BOOT = False
+    if r.get('error') == 'bad_key':   # 연결 코드가 취소됐거나(허용 끔·새 코드 발급) 워커 키가 바뀜 → 기록에 남기고 10분 쉼
+        KEY_BACKOFF[0] = time.time() + 600
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), '서버가 연결 코드를 거절함(bad_key) — 사이트에서 연결 코드를 다시 만들었거나 허용이 꺼졌어요. 10분 뒤 다시 확인', flush=True)
+        return None
     if not r.get('ok') or not r.get('job'):
         return None
     job = r['job']
@@ -940,7 +956,11 @@ if __name__ == '__main__':
     except OSError:
         print('이미 실행 중입니다.'); sys.exit(0)
     if sys.stdout is None:   # pythonw(창 없음): 기록을 파일로
-        sys.stdout = sys.stderr = open(os.path.join(HERE, 'remote_claude.log'), 'a', encoding='utf-8', buffering=1)
+        lp = os.path.join(HERE, 'remote_claude.log')
+        if os.path.isfile(lp) and os.path.getsize(lp) > 2_000_000:   # 2MB 넘으면 하나만 남기고 돌림(.log.old)
+            try: os.replace(lp, lp + '.old')
+            except OSError: pass   # 다른 프로그램이 열고 있으면 이번엔 돌리지 않고 이어 씀(시작은 막지 않음)
+        sys.stdout = sys.stderr = open(lp, 'a', encoding='utf-8', buffering=1)
     print(time.strftime('%Y-%m-%d %H:%M:%S'), '원격 Claude 다리 시작:', API, '·', claude_exe(), '· 작업 폴더', ROOT,
           '· 잠금(작업 폴더 밖·명령·위험 허용·웹 읽기 막음)' if LOCKED else '', '· 포트', LOCK_PORT, flush=True)
     if not LEGACY_MODE and sys.stdout.isatty():
