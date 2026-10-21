@@ -309,8 +309,9 @@ def console_python():
 
 def guard_settings():
     """원격 요청에만 붙이는 위험 명령 막기 훅(tools/rc_guard.py). 평소 Claude Code 사용에는 영향 없음.
-    (Claude Code 의 Windows 격리(sandbox)는 2026-10 현재 이 PC 에서 잠겨 있어(feature gate) 쓰지 못함)"""
-    return json.dumps({'hooks': {'PreToolUse': [{'matcher': '*', 'hooks': [{'type': 'command', 'command': f'"{console_python()}" "{GUARD}"', 'timeout': 30}]}]}})
+    (Claude Code 의 Windows 격리(sandbox)는 2026-10 현재 이 PC 에서 잠겨 있어(feature gate) 쓰지 못함)
+    -I: 다리 폴더에 둔 fnmatch.py 같은 파일이 보호 장치의 표준 모듈을 가로채지 못하게(2026-10-21 재현)."""
+    return json.dumps({'hooks': {'PreToolUse': [{'matcher': '*', 'hooks': [{'type': 'command', 'command': f'"{console_python()}" -I "{GUARD}"', 'timeout': 30}]}]}})
 
 
 def read_guard(path, seen):
@@ -336,7 +337,7 @@ def guard_works():
              ({'tool_name': 'Read', 'tool_input': {'file_path': os.path.join(CHAT, 'a.txt')}, 'cwd': CHAT}, {'RC_ALLOW_DANGER': '0', 'RC_DIRS': json.dumps([CHAT])}, 0)]
     try:
         for i, (sample, extra, want) in enumerate(tests):
-            r = subprocess.run([console_python(), GUARD], input=json.dumps(sample, ensure_ascii=False).encode('utf-8'), capture_output=True, timeout=30,
+            r = subprocess.run([console_python(), '-I', GUARD], input=json.dumps(sample, ensure_ascii=False).encode('utf-8'), capture_output=True, timeout=30,
                                creationflags=NO_WINDOW, env=dict(child_env(), RC_GUARD_LOG='', RC_ROOT=ROOT, RC_SHELL='1', **extra))   # 실제 실행과 같은 환경
             # 파이썬의 '파일 없음'도 종료 코드 2 라서, 막을 때는 보호 장치가 직접 쓴 표시까지 확인한다
             if r.returncode != want or (want == 2 and b'[rc_guard]' not in r.stderr):
