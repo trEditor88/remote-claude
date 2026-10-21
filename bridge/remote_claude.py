@@ -393,8 +393,12 @@ def run(job, fresh=False):
 def _run(job, fresh=False, api=None):
     bad = guard_works()
     if bad:
-        return {'result': '', 'error': ('PC 의 보호 장치가 동작하지 않아 실행하지 않았어요: ' + bad)[:300], 'sec': 0}
-    prompt = with_files(job['prompt'], save_files(job))
+        return {'result': '', 'error': ('PC 의 보호 장치가 동작하지 않아 실행하지 않았어요: ' + bad)[:300], 'sec': 0, 'costUsd': 0}
+    paths = save_files(job)
+    if job.get('files') and len(paths) < len(job['files']):   # 사진을 못 받았으면 없는 사진에 답하느라 Opus 를 돌리지 않게 멈춘다(로컬 AI 길과 같게, 2026-10-21)
+        shutil.rmtree(job_files_dir(job), ignore_errors=True)
+        return {'result': '', 'error': '붙인 사진을 PC 가 받지 못했어요. 다시 보내 주세요.', 'sec': 0, 'costUsd': 0}   # API 재실행 안에서 멈춰도 쓴 돈 0 으로 정산
+    prompt = with_files(job['prompt'], paths)
     if prompt.startswith('-'):
         prompt = ' ' + prompt   # '-' 로 시작하면 claude 가 옵션으로 읽지 않게
     cmd = [claude_exe(), '-p', prompt, '--output-format', 'stream-json', '--verbose', '--max-turns', '150',

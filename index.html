@@ -574,6 +574,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var auth = null, threads = [], items = [], cache = {}, cacheThread = null, els = {}, expanded = {}, openLog = {};
   var cur = null;   // 보고 있는 대화: null=서버가 가장 최근 대화를 고름, ""=새 대화, 그 밖=대화 id
   var pendingFolder = "";   // '이 폴더에 새 대화'로 시작한 새 대화가 들어갈 폴더
+  var lastFull = 0;   // 마지막으로 대화 목록까지 받은 시각(rcList lite)
   var skew = 0, pcSeenAt = -1, seq = 0, pollTimer = 0, toastTimer = 0, prevAct = null, doneMark = false, justMoved = false, sending = false;
   var threadSig = "", threadsDirty = false, menuAnchor = null, folds = new Set();
   var opts = { model: LOCAL ? "local-fast" : "" };
@@ -1494,7 +1495,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       p.title = !lm ? "PC 다리가 로컬 AI 를 모르는 옛 버전이에요. 다리를 다시 켜 주세요." : lm.up ? "로컬 LLM 서버가 켜져 있어요." + (lm.loaded && lm.loaded.length ? " 올라와 있는 모델: " + lm.loaded.join(", ") + " (다른 모델은 처음에 1~2분 걸려요)" : " 처음 요청은 모델을 올리느라 1~2분 걸려요.") : "PC의 로컬 LLM 서버가 꺼져 있어요. PC에서 로컬 LLM 서버를 켜 주세요.";
       return;
     }
-    p.title = on ? "PC 다리가 5초마다 새 요청을 확인하고 있어요." : "PC에서 tools\\remote_claude.py 가 꺼져 있어요. PC를 켜고 로그인하면 자동으로 켜져요.";
+    p.title = on ? "PC 다리가 새 요청을 확인하고 있어요(실행 중·최근 2분은 5초, 한동안 요청이 없으면 15초마다)." : "PC에서 tools\\remote_claude.py 가 꺼져 있어요. PC를 켜고 로그인하면 자동으로 켜져요.";
   }
   function renderHint() {
     var h = $("sendHint"), t = curThread();
@@ -1528,12 +1529,14 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     Object.keys(els).forEach(function (k) { if (!keep[k]) delete els[k]; });
   }
 
-  /* ── 불러오기: 실행 중이면 1.5초, 다른 대화가 실행 중이면 5초, 아니면 30초마다(탭을 숨기면 쉼) ── */
+  /* ── 불러오기: 실행 중이면 1.5초, 다른 대화가 실행 중이면 5초, 아니면 30초마다(탭을 숨기면 쉼).
+     PC 가 꺼져 있으면 대기 요청이 있어도 바뀔 게 없으니 15초(2026-10-21: 꺼진 PC 에 1.5초 폴링이 끝없이 이어지던 것) ── */
   function schedule(err) {
     clearTimeout(pollTimer);
     if (!auth) return;
     var mine = items.some(function (x) { return ACTIVE[x.status]; }), any = threads.some(function (t) { return t.active; });
     var ms = mine ? 1500 : any ? 5000 : 30000;
+    if (pcSeenAt >= 0 && !pcOnline()) ms = Math.max(ms, 15000);
     if (err) ms = Math.max(ms, 10000);
     if (document.hidden) { if (!any) return; ms = Math.max(ms, 15000); }
     pollTimer = setTimeout(load, ms);
@@ -1555,6 +1558,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (cur !== null) body.thread = cur;
     if (cur !== null && cur === cacheThread) { Object.keys(cache).forEach(function (k) { since = Math.max(since, cache[k].updatedAt || 0); }); since = Math.max(0, since - 5000); }
     body.since = since;
+    // 실행 중 빠른 폴링: 15초 안에 전체를 받았으면 대화 목록·보안 알림은 빼고 이 대화만(서버 부담 줄이기, 2026-10-21)
+    if (cur && cur === cacheThread && Date.now() - lastFull < 15000 && items.some(function (x) { return ACTIVE[x.status]; })) body.lite = 1;
     return api(body).then(function (r) {
       if (my !== seq) return;
       if (!r.ok) {
@@ -1566,9 +1571,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       $("netErr").hidden = true;
       skew = (r.now || Date.now()) - Date.now();
       pcSeenAt = r.pcSeenAt || 0;
-      var allT = r.threads || [];
-      threads = allT.filter(function (x) { return !!x.local === LOCAL; });
-      if (threads.length) { var gone = false; Object.keys(modes).forEach(function (k) { if (k && modes[k].at < Date.now() + skew - 86400000 && !allT.some(function (x) { return x.thread === k; })) { delete modes[k]; gone = true; } }); if (gone) saveModes(); }
+      var lite = !!r.lite && Array.isArray(r.items);   // 옛 서버는 lite 를 모르고 늘 전체를 보냄
+      if (!lite) lastFull = Date.now();
+      var allT = lite ? threads : (r.threads || []);
+      if (!lite) threads = allT.filter(function (x) { return !!x.local === LOCAL; });
+      if (!lite && threads.length) { var gone = false; Object.keys(modes).forEach(function (k) { if (k && modes[k].at < Date.now() + skew - 86400000 && !allT.some(function (x) { return x.thread === k; })) { delete modes[k]; gone = true; } }); if (gone) saveModes(); }
       var t = typeof r.thread === "string" ? r.thread : (cur || "");
       // 다른 화면(원격 Claude ↔ 로컬 AI)의 대화가 골라졌으면 새 대화로
       if (t && allT.some(function (x) { return x.thread === t; }) && !threads.some(function (x) { return x.thread === t; })) { t = ""; r.items = []; setCur(""); delete modes[""]; }
@@ -1580,14 +1587,19 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         next[x.id] = x; return x;
       });
       cache = next;
-      if (missing) { cacheThread = null; return load(); }
-      $("stale").hidden = !r.stale;
-      $("needSetup").hidden = !r.needSetup;
+      if (missing) { cacheThread = null; lastFull = 0; return load(); }
+      var liteDone = false;
+      if (lite) {   // 목록을 안 받았으니 지금 대화의 실행 상태만 받은 요청들로 고쳐 둔다(끝남 알림·폴링 간격이 늦지 않게)
+        threads.forEach(function (x) { if (x.thread === cur) { var was = x.active; x.active = items.some(function (y) { return ACTIVE[y.status]; }); x.running = items.some(function (y) { return y.status === "running" || y.status === "canceling"; }); if (was && !x.active) liteDone = true; } });
+      } else {
+        $("stale").hidden = !r.stale;
+        $("needSetup").hidden = !r.needSetup;
+      }
       pcInfo = r.pc || null;
       $("noPc").hidden = !pcInfo || pcInfo.hasBridge || pcInfo.legacy;
       if (LOCAL) $("emptyLead").textContent = "연결한 PC의 로컬 LLM이 답해요. Claude 사용량은 들지 않고, 파일을 읽거나 명령을 실행하지는 못해요. 사진은 붙일 수 있어요.";
       else $("emptyLead").textContent = (pcInfo && pcInfo.dir ? "연결한 PC" + (pcInfo.pc ? "(" + pcInfo.pc + ")" : "") + "의 " + pcInfo.dir + " 폴더에서" : "연결한 PC에서") + " Claude Code가 일합니다. 아래에서 골라 고쳐 쓰거나 직접 적어 보내세요.";
-      $("secAlert").hidden = !r.alerts; $("secAlertText").textContent = "보안 알림 " + r.alerts + "건이 있어요 (로그인 실패·새 기기·막은 명령 등)";
+      if (!lite) { $("secAlert").hidden = !r.alerts; $("secAlertText").textContent = "보안 알림 " + r.alerts + "건이 있어요 (로그인 실패·새 기기·막은 명령 등)"; }
       if (typeof r.keep === "boolean" && auth.keep !== r.keep) { auth.keep = r.keep; saveAuth(); }
       watchDanger();
       detectDone();
@@ -1596,6 +1608,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       render();
       if (stick && items.length) toBottom();   // 빈 대화(추천 화면)는 위에서부터 보이게
       justMoved = false;
+      if (liteDone) { lastFull = 0; return load(); }   // 방금 끝났으면 대화 목록(안 읽음·실패 표시)을 바로 한 번 전체로 받는다
       schedule();
     });
   }
