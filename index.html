@@ -1713,6 +1713,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       var adm = auth.user && auth.user.role === "admin";
       Array.prototype.forEach.call($("model").options, function (op) { if (op.value === "local-deepseek" || op.value === "local-free") op.hidden = op.disabled = !adm; });
       if (!adm && (opts.model === "local-deepseek" || opts.model === "local-free")) { opts.model = "local-fast"; $("model").value = "local-fast"; }
+      var stu = auth.user && auth.user.role === "student";   // 학생 계정은 로컬 AI 를 못 씀(서버도 막음)
+      $("prompt").disabled = stu; if (stu) $("prompt").placeholder = "학생 계정은 로컬 AI를 쓸 수 없어요";
     }
     if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; load(); }
     else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
