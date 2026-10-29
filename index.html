@@ -1709,12 +1709,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
   function show(loggedIn) {
     $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn; $("quick").hidden = !(loggedIn && auth.user && auth.user.role === "admin"); if (loggedIn) renderChips();
-    if (LOCAL && loggedIn) {   // 딥시크·검열 해제판은 관리자만(서버도 막음). 같은 기기에서 다른 계정이 들어오면 저장된 선택을 빠름으로 되돌림
+    if (LOCAL && loggedIn) {   // 로컬 AI 는 관리자만(서버도 막음, 2026-10-29)
       var adm = auth.user && auth.user.role === "admin";
-      Array.prototype.forEach.call($("model").options, function (op) { if (op.value === "local-deepseek" || op.value === "local-free") op.hidden = op.disabled = !adm; });
-      if (!adm && (opts.model === "local-deepseek" || opts.model === "local-free")) { opts.model = "local-fast"; $("model").value = "local-fast"; }
-      var stu = auth.user && auth.user.role === "student";   // 학생 계정은 로컬 AI 를 못 씀(서버도 막음)
-      $("prompt").disabled = stu; if (stu) $("prompt").placeholder = "학생 계정은 로컬 AI를 쓸 수 없어요";
+      $("prompt").disabled = $("model").disabled = !adm; if (!adm) $("prompt").placeholder = "로컬 AI는 관리자만 쓸 수 있어요";
     }
     if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; load(); }
     else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
