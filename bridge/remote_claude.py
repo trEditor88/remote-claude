@@ -637,7 +637,7 @@ def run_local(job):
             mime = 'image/' + {'jpg': 'jpeg'}.get(p.rsplit('.', 1)[-1], p.rsplit('.', 1)[-1])
             parts.append({'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,' + base64.b64encode(open(p, 'rb').read()).decode()}})
         content = parts + [{'type': 'text', 'text': content}]
-    hist = local_trim(old, LOCAL_HIST_MAX.get(name, LOCAL_HIST_CHARS))
+    hist = local_trim(old, max(2000, LOCAL_HIST_MAX.get(name, LOCAL_HIST_CHARS) - len(text)))   # 긴 글(최대 10만 자)이면 지난 대화를 그만큼 줄임
     body = {'model': name, 'stream': True, 'max_tokens': 16384 if think else 8192,
             'messages': [{'role': 'system', 'content': local_system()}] + hist + [{'role': 'user', 'content': content}],
             'chat_template_kwargs': {'enable_thinking': think}}
@@ -680,7 +680,7 @@ def run_local(job):
                             detail = ' '.join(v.read(400).decode('utf-8', 'replace').split())
                         except Exception:
                             detail = ''
-                        why = f'로컬 LLM 이 요청을 거절했어요(HTTP {v.code}). ' + ('대화가 너무 길면 새 대화로 시작해 주세요. ' if v.code in (400, 413) else '') + detail[:150]
+                        why = f'로컬 LLM 이 요청을 거절했어요(HTTP {v.code}). ' + ('글이 이 모델이 한 번에 읽을 수 있는 양을 넘었을 수 있어요. 글을 줄이거나 새 대화로 시작해 주세요. ' if v.code in (400, 413) else '') + detail[:150]
                     else:
                         why = f'이 PC 의 로컬 LLM 서버에 연결하지 못했어요({type(v).__name__}). 서버가 켜져 있는지 확인해 주세요.'
                     return dict(out, sessionId=job.get('sessionId') or '', result='', sec=round(time.time() - t0), error=why[:300])
