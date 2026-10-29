@@ -228,7 +228,7 @@ def kill_tree(p):
         pass
 
 
-BRIDGE_V = 4   # 3: 'Claude 앱으로 보내기'(mode open) 요청을 안다. 4: 로컬 AI(model local-*) 요청을 안다. 서버는 그보다 옛 다리에 그 요청을 주지 않는다
+BRIDGE_V = 5   # 3: 'Claude 앱으로 보내기'(mode open) 요청을 안다. 4: 로컬 AI(model local-*) 요청을 안다. 5: local-deepseek·local-free 를 안다. 서버는 그보다 옛 다리에 그 요청을 주지 않는다
 SKIP_DIRS = ('__pycache__', 'node_modules', 'gas', 'remote-claude-inbox')
 
 
@@ -543,7 +543,10 @@ def run_fresh(job, api=None):
 """ ── 로컬 AI(2026-10-14): 모델이 local-* 인 요청은 Claude 대신 이 PC 의 로컬 LLM(llama-swap, OpenAI 호환)으로 답한다 ──
    도구·파일·명령 없이 글(+사진)만 주고받는다. 대화 기록은 INBOX/local/<세션>.json(세션 id 'local-<hex>')에 두고,
    서버는 그 id 를 Claude 세션 id 처럼 대화(thread)에 저장했다가 다음 요청 때 돌려준다."""
-LOCAL_MODELS = {'local-fast': ('qwen-fast', False), 'local-next': ('flash-next', True)}   # (llama-swap 모델 이름, 생각 켜기)
+LOCAL_MODELS = {'local-fast': ('qwen-fast', False), 'local-next': ('flash-next', True),
+                'local-deepseek': ('deepseek-v4', False), 'local-free': ('flash-next-abliterated', False)}   # (llama-swap 모델 이름, 생각 켜기). 2026-10-29 딥시크·검열 해제판(관리자만)
+LOCAL_NOVISION = {'deepseek-v4'}   # 사진을 못 읽는 모델
+LOCAL_HIST_MAX = {'deepseek-v4': 16000}   # 문맥이 32k 토큰이라 지난 대화를 더 짧게
 LOCAL_DIR = os.path.join(INBOX, 'local')
 LOCAL_SID = re.compile(r'^local-[0-9a-f]{20}$')
 LOCAL_HIST_CHARS = 30000   # 이어 붙일 지난 대화 글자 상한(한글 ≈ 1자 1토큰. 모델 문맥 64k 토큰 안에서 새 질문·사진·답·생각 16k 자리를 남김)
@@ -605,9 +608,9 @@ def local_save(sid, hist):
     os.replace(fp + '.tmp', fp)
 
 
-def local_trim(hist):
-    """오래된 것부터 빼서 LOCAL_HIST_CHARS 안으로(질문·답 짝이 깨지지 않게 둘씩)."""
-    while len(hist) > 2 and sum(len(m['content']) for m in hist) > LOCAL_HIST_CHARS:
+def local_trim(hist, limit=LOCAL_HIST_CHARS):
+    """오래된 것부터 빼서 limit 글자 안으로(질문·답 짝이 깨지지 않게 둘씩)."""
+    while len(hist) > 2 and sum(len(m['content']) for m in hist) > limit:
         hist = hist[2:]
     return hist
 
@@ -622,6 +625,10 @@ def run_local(job):
         shutil.rmtree(job_files_dir(job), ignore_errors=True)
         return {'sessionId': job.get('sessionId') or '', 'usedModel': name, 'turns': 0, 'danger': '', 'result': '', 'sec': round(time.time() - t0),
                 'error': '붙인 사진을 PC 가 받지 못했어요. 다시 보내 주세요.'}
+    if paths and name in LOCAL_NOVISION:
+        shutil.rmtree(job_files_dir(job), ignore_errors=True)
+        return {'sessionId': job.get('sessionId') or '', 'usedModel': name, 'turns': 0, 'danger': '', 'result': '', 'sec': round(time.time() - t0),
+                'error': '딥시크는 사진을 읽지 못해요. 사진은 다른 모델로 보내 주세요.'}
     text = '' if job['prompt'] == '(사진)' and paths else job['prompt']
     content = text or '이 사진을 설명해 줘.'
     if paths:
@@ -630,7 +637,7 @@ def run_local(job):
             mime = 'image/' + {'jpg': 'jpeg'}.get(p.rsplit('.', 1)[-1], p.rsplit('.', 1)[-1])
             parts.append({'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,' + base64.b64encode(open(p, 'rb').read()).decode()}})
         content = parts + [{'type': 'text', 'text': content}]
-    hist = local_trim(old)
+    hist = local_trim(old, LOCAL_HIST_MAX.get(name, LOCAL_HIST_CHARS))
     body = {'model': name, 'stream': True, 'max_tokens': 16384 if think else 8192,
             'messages': [{'role': 'system', 'content': local_system()}] + hist + [{'role': 'user', 'content': content}],
             'chat_template_kwargs': {'enable_thinking': think}}
@@ -906,7 +913,8 @@ def handle(job):
     else:
         try:
             res = ({'result': '', 'error': '이 PC 는 잠금 다리라 Claude 앱으로 보내기를 쓸 수 없어요.', 'sec': 0} if job.get('mode') == 'open' and LOCKED else
-                   open_in_app(job) if job.get('mode') == 'open' else run_local(job) if job.get('model') in LOCAL_MODELS else run(job))
+                   open_in_app(job) if job.get('mode') == 'open' else run_local(job) if job.get('model') in LOCAL_MODELS else
+                   {'result': '', 'error': '이 다리가 모르는 로컬 모델이에요. 다리를 업데이트해 주세요.', 'sec': 0} if str(job.get('model') or '').startswith('local-') else run(job))
         except Exception as e:
             res = {'result': '', 'error': f'PC 다리 오류: {e}'[:300], 'sec': 0}
         finally:

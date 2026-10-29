@@ -538,9 +538,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   var SVGNS = "http://www.w3.org/2000/svg";
   var ST = { queued: "대기", running: "실행 중", canceling: "중지하는 중", canceled: "중지됨", done: "완료", error: "오류" };
   var ACTIVE = { queued: 1, running: 1, canceling: 1 };
-  var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku", "local-fast": "로컬 빠름", "local-next": "로컬 깊게" };
+  var MODEL_TAG = { sonnet: "Sonnet", opus: "Opus", fable: "Fable", haiku: "Haiku", "local-fast": "로컬 빠름", "local-next": "로컬 깊게", "local-deepseek": "딥시크", "local-free": "검열 해제" };
   var MODEL_HINT = { fable: "Fable은 가장 똑똑하지만 사용량을 Opus의 2.5배쯤 써요. 어려운 일에만 고르세요.", haiku: "Haiku는 가장 빠르고 사용량이 적지만, 복잡한 일은 실수할 수 있어요.",
-    "local-next": "깊게는 큰 모델이 생각한 뒤 답해서 1~3분쯤 걸려요. 가벼운 질문은 빠름으로 하세요." };
+    "local-next": "깊게는 큰 모델이 생각한 뒤 답해서 1~3분쯤 걸려요. 가벼운 질문은 빠름으로 하세요.",
+    "local-deepseek": "딥시크는 가장 큰 모델이라 처음 켜는 데 4분쯤 걸리고 글은 느리게 써요. 사진은 못 읽어요.",
+    "local-free": "검열 해제판은 거절을 거의 안 하는 대신 사실이 틀릴 수 있어요. 처음 켜는 데 몇 분 걸려요." };
   var ERR = { bad_login: "아이디 또는 비밀번호가 맞지 않습니다.", locked: "너무 많이 틀려 잠시 잠겼어요. 15~30분 뒤 다시 시도해 주세요.", forbidden: "원격 Claude 사용을 허락받은 계정만 쓸 수 있어요. 관리자에게 요청하세요.",
     need_setup: "먼저 설정에서 보안 코드를 정해 주세요. 정하기 전에는 PC로 실행하지 않아요.",
     rc_dir_unknown: "PC에 없는 폴더가 들어 있어요. 설정을 다시 열어 골라 주세요.",
@@ -1707,6 +1709,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
   function show(loggedIn) {
     $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn; $("quick").hidden = !(loggedIn && auth.user && auth.user.role === "admin"); if (loggedIn) renderChips();
+    if (LOCAL && loggedIn) {   // 딥시크·검열 해제판은 관리자만(서버도 막음). 같은 기기에서 다른 계정이 들어오면 저장된 선택을 빠름으로 되돌림
+      var adm = auth.user && auth.user.role === "admin";
+      Array.prototype.forEach.call($("model").options, function (op) { if (op.value === "local-deepseek" || op.value === "local-free") op.hidden = op.disabled = !adm; });
+      if (!adm && (opts.model === "local-deepseek" || opts.model === "local-free")) { opts.model = "local-fast"; $("model").value = "local-fast"; }
+    }
     if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; load(); }
     else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
   }
@@ -1788,7 +1795,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     Array.prototype.forEach.call(document.querySelectorAll(".brand-text, #loginTitle"), function (n) { n.textContent = APP; });
     $("loginTitle").nextElementSibling.textContent = "휴대폰에서 물어보면 PC의 로컬 AI가 답해 줍니다. 원격 Claude와 같은 계정으로 들어가요.";
     $("model").textContent = "";
-    [["local-fast", "빠름 · Qwen 35B"], ["local-next", "깊게 · Flash-Next 125B"]].forEach(function (o) { var op = el("option", null, o[1]); op.value = o[0]; $("model").appendChild(op); });
+    [["local-fast", "빠름 · Qwen 35B"], ["local-next", "깊게 · Flash-Next 125B"], ["local-deepseek", "딥시크 · DeepSeek V4 284B"], ["local-free", "검열 해제 · Flash-Next 125B"]].forEach(function (o) { var op = el("option", null, o[1]); op.value = o[0]; $("model").appendChild(op); });
     [document.querySelector(".seg"), $("quick"), $("danger")].forEach(function (n) { n.style.display = "none"; });
     $("prompt").placeholder = "로컬 AI에게 물어볼 것을 적어 주세요";
     $("emptyTitle").textContent = "무엇을 물어볼까요?";
