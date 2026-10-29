@@ -1680,7 +1680,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function updateSend() {
     var n = $("prompt").value.length, c = $("count"), busy = pics.some(function (p) { return !p.data; });
     $("send").disabled = sending || busy || !($("prompt").value.trim() || pics.length);
-    var max = LOCAL ? 100000 : 4000;   // 로컬 AI 는 10만 자(서버도 같음)
+    var max = LOCAL ? 50000 : 4000;   // 로컬 AI 는 5만 자(서버도 같음)
     c.hidden = n < max * 0.75; c.textContent = n.toLocaleString() + " / " + max.toLocaleString(); c.className = "count" + (n >= max * 0.975 ? " bad" : "");
   }
   function sendHintError(msg) { var h = $("sendHint"); h.textContent = msg; h.className = "comp-hint bad"; }
@@ -1798,7 +1798,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     [["local-fast", "빠름 · Qwen 35B"], ["local-next", "깊게 · Flash-Next 125B"], ["local-deepseek", "딥시크 · DeepSeek V4 284B"], ["local-free", "검열 해제 · Flash-Next 125B"]].forEach(function (o) { var op = el("option", null, o[1]); op.value = o[0]; $("model").appendChild(op); });
     [document.querySelector(".seg"), $("quick"), $("danger")].forEach(function (n) { n.style.display = "none"; });
     $("prompt").placeholder = "로컬 AI에게 물어볼 것을 적어 주세요";
-    $("prompt").maxLength = 100000;
+    $("prompt").maxLength = 50000;
     $("emptyTitle").textContent = "무엇을 물어볼까요?";
     var tips = document.querySelector(".tips"); tips.textContent = "";
     ["<b>대화마다 따로 기억해요.</b> 다른 주제는 새 대화로 시작하세요.", "<b>빠름</b>은 몇 초 안에, <b>깊게</b>는 생각한 뒤 1~3분 걸려 답해요.",

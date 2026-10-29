@@ -546,7 +546,8 @@ def run_fresh(job, api=None):
 LOCAL_MODELS = {'local-fast': ('qwen-fast', False), 'local-next': ('flash-next', True),
                 'local-deepseek': ('deepseek-v4', False), 'local-free': ('flash-next-abliterated', False)}   # (llama-swap 모델 이름, 생각 켜기). 2026-10-29 딥시크·검열 해제판(관리자만)
 LOCAL_NOVISION = {'deepseek-v4'}   # 사진을 못 읽는 모델
-LOCAL_HIST_MAX = {'deepseek-v4': 16000}   # 문맥이 32k 토큰이라 지난 대화를 더 짧게
+LOCAL_BUDGET = {'deepseek-v4': 25000}   # 지난 대화+새 글 합계 글자 상한. 딥시크는 문맥 32k 토큰이라 더 작게(한글 ≈ 0.4토큰/자 측정, 최악 대비)
+LOCAL_BUDGET_DEF = 50000   # 문맥 64k 토큰 모델(5만 자 ≈ 2만 토큰 + 답 자리). 넘치면 답이 한두 글자에서 끊김(2026-10-29 검열 해제판에서 재현)
 LOCAL_DIR = os.path.join(INBOX, 'local')
 LOCAL_SID = re.compile(r'^local-[0-9a-f]{20}$')
 LOCAL_HIST_CHARS = 30000   # 이어 붙일 지난 대화 글자 상한(한글 ≈ 1자 1토큰. 모델 문맥 64k 토큰 안에서 새 질문·사진·답·생각 16k 자리를 남김)
@@ -612,6 +613,18 @@ def local_trim(hist, limit=LOCAL_HIST_CHARS):
     """오래된 것부터 빼서 limit 글자 안으로(질문·답 짝이 깨지지 않게 둘씩)."""
     while len(hist) > 2 and sum(len(m['content']) for m in hist) > limit:
         hist = hist[2:]
+    over = sum(len(m['content']) for m in hist) - max(0, limit)
+    if over > 0:   # 남은 한 짝 자체가 너무 길면(긴 글을 붙여 넣은 경우) 긴 쪽부터 가운데를 줄인다 — 안 그러면 문맥이 꽉 차 답이 끊김
+        hist = [dict(m) for m in hist]
+        for m in sorted(hist, key=lambda m: -len(m['content'])):
+            c = m['content']
+            keep = max(400, len(c) - over - 12)
+            if keep >= len(c):
+                continue
+            m['content'] = c[:keep // 2] + '\n…(줄임)…\n' + c[len(c) - (keep - keep // 2):]
+            over -= len(c) - len(m['content'])
+            if over <= 0:
+                break
     return hist
 
 
@@ -637,7 +650,12 @@ def run_local(job):
             mime = 'image/' + {'jpg': 'jpeg'}.get(p.rsplit('.', 1)[-1], p.rsplit('.', 1)[-1])
             parts.append({'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,' + base64.b64encode(open(p, 'rb').read()).decode()}})
         content = parts + [{'type': 'text', 'text': content}]
-    hist = local_trim(old, max(2000, LOCAL_HIST_MAX.get(name, LOCAL_HIST_CHARS) - len(text)))   # 긴 글(최대 10만 자)이면 지난 대화를 그만큼 줄임
+    budget = LOCAL_BUDGET.get(name, LOCAL_BUDGET_DEF)
+    if len(text) > budget:   # 새 글 하나가 모델이 읽을 수 있는 양을 넘으면 보내지 않고 알린다
+        shutil.rmtree(job_files_dir(job), ignore_errors=True)
+        return {'sessionId': job.get('sessionId') or '', 'usedModel': name, 'turns': 0, 'danger': '', 'result': '', 'sec': round(time.time() - t0),
+                'error': f'글이 {len(text):,}자라 이 모델이 한 번에 읽을 수 있는 양(약 {budget:,}자)을 넘어요. 나눠서 보내 주세요.'}
+    hist = local_trim(old, min(LOCAL_HIST_CHARS, budget - len(text)))   # 지난 대화+새 글이 budget 안에 들게(긴 글 한 짝도 줄임)
     body = {'model': name, 'stream': True, 'max_tokens': 16384 if think else 8192,
             'messages': [{'role': 'system', 'content': local_system()}] + hist + [{'role': 'user', 'content': content}],
             'chat_template_kwargs': {'enable_thinking': think}}
@@ -701,6 +719,8 @@ def run_local(job):
                     ch = (json.loads(data).get('choices') or [{}])[0] if data else {}
                     d = ch.get('delta') or {}
                     finished = finished or bool(ch.get('finish_reason'))
+                    if ch.get('finish_reason') == 'length':   # 답 길이 상한이나 문맥이 꽉 차서 멈춤
+                        hold['length'] = True
                 except Exception:
                     d = {}
                 if d.get('reasoning_content'):
@@ -756,6 +776,8 @@ def run_local(job):
     local_save(sid, local_trim(hist + [{'role': 'user', 'content': note + text}, {'role': 'assistant', 'content': a}]))
     if err:
         a += '\n\n(' + err + ' 여기까지만 받았어요.)'
+    elif hold.get('length'):
+        a += '\n\n(모델이 한 번에 다룰 수 있는 양이 차서 답이 여기서 끊겼어요. "계속"이라고 보내거나, 계속 끊기면 새 대화로 시작해 주세요.)'
     return dict(out, result=a[:60000], error='')
 
 
