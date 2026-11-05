@@ -26,7 +26,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="description" content="서버의 Claude Code에게 일을 시키고 결과를 받습니다.">
 <meta name="robots" content="noindex">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://exam-api.dawn-sea-4052.workers.dev http://127.0.0.1:* http://localhost:* data: blob:; manifest-src 'self'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://heoworks.pages.dev https://exam-api.dawn-sea-4052.workers.dev http://127.0.0.1:* http://localhost:* data: blob:; manifest-src 'self'; base-uri 'none'; object-src 'none'">
 <link rel="manifest" href="manifest.webmanifest">   <!-- 홈 화면에 추가할 때 쓰는 PNG 아이콘·이름(SVG 아이콘은 탭에만 쓰임) -->
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
@@ -533,7 +533,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   // 로컬 AI(local.html, 2026-10-14): 같은 로그인·대화 기능으로 Claude 대신 PC 의 로컬 LLM 에게 묻는다(도구 없음, 사용량 0)
   var LOCAL = /(^|\/)local(\.html)?$/.test(location.pathname), APP = LOCAL ? "로컬 AI" : "원격 Claude", AI = LOCAL ? "AI" : "Claude";
   if (LOCAL) { TKEY += ":local"; OKEY += ":local"; }
-  var API = "https://exam-api.dawn-sea-4052.workers.dev";
+  var API = "https://heoworks.pages.dev/api";
   try { API = localStorage.getItem("remote-claude:api") || API; } catch (e) {}   // 로컬 시험용(wrangler dev)
   var SVGNS = "http://www.w3.org/2000/svg";
   var ST = { queued: "대기", running: "실행 중", canceling: "중지하는 중", canceled: "중지됨", done: "완료", error: "오류" };
