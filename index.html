@@ -32,7 +32,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
 <style>
 /* Light 하우스 토큰(.claude/웹사이트_제작_통합_프롬프트.md) — 단일 액센트 blue, 그림자 없음, 웨이트 400/600/700 */
-:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--hairline:rgba(0,0,0,.10);--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--green:#15803D;--red:#C0392B;--yellow:#FACC15;--on-blue:#FFFFFF;--scrim:rgba(0,0,0,.4);
+:root{--canvas:#FFFFFF;--parchment:#F5F5F7;--ink:#1D1D1F;--muted:#6E6E73;--hairline:rgba(0,0,0,.10);--border:#E0E0E0;--blue:#0066CC;--blue-focus:#0071E3;--green:#15803D;--red:#C0392B;--yellow:#A16207;--on-blue:#FFFFFF;--scrim:rgba(0,0,0,.4);
   --r-sm:8px;--r-md:11px;--r-lg:18px;--r-pill:9999px;--top:56px;--mono:ui-monospace,"Cascadia Mono",Consolas,"D2Coding",monospace}
 @media (prefers-color-scheme: dark){:root{--canvas:#000000;--parchment:#1C1C1E;--ink:#F5F5F7;--muted:#A1A1A6;--hairline:rgba(255,255,255,.12);--border:#3A3A3C;--blue:#4A9EFF;--blue-focus:#4A9EFF;--green:#4CC38A;--red:#FF6B5B;--yellow:#FDE047;--on-blue:#000000;--scrim:rgba(0,0,0,.6)}}
 *{box-sizing:border-box}
@@ -214,6 +214,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 /* Claude 결과(Markdown) — DOM 으로만 만든다(innerHTML 안 씀) */
 .md{font-size:1.0625rem;line-height:1.7;overflow-wrap:anywhere}
 .md.err{color:var(--red)}
+.cutnote{color:var(--muted);font-size:.875rem;margin:8px 0 0;padding:8px 12px;border-left:3px solid var(--border);background:var(--parchment);border-radius:0 var(--r-sm) var(--r-sm) 0}
 .md>:first-child{margin-top:0}
 .md>:last-child{margin-bottom:0}
 .md p{margin:0 0 .8em}
@@ -245,6 +246,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 
 /* 빈 대화: 추천 요청 + 사용 팁 */
 .empty{padding:clamp(24px,6vh,64px) 0 32px}
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);padding:clamp(32px,10vh,96px) 0;margin:0}
+.loading::before{content:"";width:18px;height:18px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--blue);animation:spin .8s linear infinite;flex:none}
+@media (prefers-reduced-motion:reduce){.loading::before{animation-duration:2.4s}}
 .empty .mark{margin-bottom:16px}
 .empty h2{font-size:clamp(1.5rem,3vw,2rem);font-weight:600;letter-spacing:-0.01em;line-height:1.3;margin:0 0 8px}
 .empty .lead{color:var(--muted);font-size:1.0625rem;margin:0 0 24px}
@@ -487,6 +491,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
           </ul>
         </section>
 
+        <p class="loading" id="loading" role="status" hidden>대화를 불러오는 중…</p>
         <ol class="msgs" id="list" aria-label="요청과 결과"></ol>
       </div>
 
@@ -553,7 +558,11 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     rc_busy: "처리를 기다리는 요청이 이미 3개 있어요. 끝난 뒤 다시 보내 주세요.", rc_running: "실행 중인 요청이 있는 대화는 지울 수 없어요. 끝나거나 중지된 뒤에 지워 주세요.",
     rc_files_many: "사진은 한 번에 4장까지 보낼 수 있어요.", too_big: "사진이 너무 커요. 다른 사진으로 해 주세요.",
     rc_not_active: "이미 끝난 요청이에요.", bad_code: "보안 코드가 맞지 않아요.", code_expired: "확인 시간이 지났어요. 처음부터 다시 로그인해 주세요.",
-    weak_code: "너무 쉬운 코드예요. 같은 숫자 반복이나 연속 숫자는 안 돼요.", bad_code_format: "6자리 숫자로 정해 주세요.", not_found: "대화를 찾지 못했어요. 이미 지워졌을 수 있어요.", bad_scope: "내용을 적어 주세요.",
+    weak_code: "너무 쉬운 코드예요. 같은 숫자 반복이나 연속 숫자는 안 돼요.", bad_code_format: "6자리 숫자로 정해 주세요.", not_found: "대화를 찾지 못했어요. 이미 지워졌을 수 있어요.", bad_scope: "내용이 비었거나 형식이 맞지 않아요. 내용을 확인해 주세요.",
+    ai_daily_limit: "오늘 보낼 수 있는 요청을 다 썼어요. 내일 다시 보내 주세요.", bad_token: "로그인이 끝났어요. 다시 로그인해 주세요.",
+    need_code: "보안 코드를 넣어 주세요.", need_pw: "처음 한 번은 비밀번호로 로그인해 보안 코드를 정해야 해요.", sso_expired: "공유 계정 로그인 코드가 만료됐어요. 다시 열거나 직접 로그인해 주세요.",
+    bad_key: "PC 연결 정보가 맞지 않아요. 관리자에게 문의하세요.", bad_request: "요청 형식이 맞지 않아요. 새로고침한 뒤 다시 해 주세요.", bad_json: "요청 형식이 맞지 않아요. 새로고침한 뒤 다시 해 주세요.",
+    bad_action: "사이트가 옛 버전이에요. 새로고침해 주세요.", no_binding: "서버 연결 설정에 문제가 있어요. 잠시 뒤 다시 시도해 주세요.",
     network: "인터넷 연결을 확인해 주세요.", timeout: "서버 응답이 너무 늦어요.", server: "서버 오류가 났어요. 잠시 뒤 다시 시도해 주세요." };
   var SUGGEST = [
     { i: "pulse", t: "사이트 상태 점검", p: "시험지·자리 뽑기 사이트와 서버 상태를 점검해 줘(.\\check-project.ps1 -Online). 문제가 있으면 원인과 고칠 방법을 알려 줘." },
@@ -639,7 +648,14 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function cut(s, n) { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; }
   function tidy(s) { return String(s || "").replace(/\s+/g, " ").trim(); }
   function modelName(id) { var m = /(opus|sonnet|haiku|fable)[-_ ]?(\d{1,2})(?:[-_.](\d{1,2})(?!\d))?/i.exec(id || ""); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() + " " + m[2] + (m[3] ? "." + m[3] : "") : (id || ""); }
-  function errMsg(r) { return (r && ERR[r.error]) || (r && r.error) || ERR.network; }
+  var RESULT_MAX = 60000;   // 서버(rcDone)가 결과를 자르는 길이 — 딱 이 길이면 잘린 것으로 본다
+  function isCut(x) { return !!x.result && x.result.length >= RESULT_MAX; }
+  function errMsg(r) {
+    var c = r && r.error;
+    if (!c) return ERR.network;
+    if (c === "ai_daily_limit" && r.limit) return "오늘 보낼 수 있는 요청 " + r.limit + "번을 다 썼어요. 내일 다시 보내 주세요.";
+    return (Object.prototype.hasOwnProperty.call(ERR, c) && ERR[c]) || "알 수 없는 오류 (" + String(c).slice(0, 40) + ")";
+  }
   function setCur(t) { cur = t; try { localStorage.setItem(TKEY, t); } catch (e) {} }
   function saveOpts() { try { localStorage.setItem(OKEY, JSON.stringify(opts)); } catch (e) {} }
   function saveModes() { try { localStorage.setItem(MKEY, JSON.stringify(modes)); } catch (e) {} }
@@ -1370,6 +1386,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         body.appendChild(md(out));
         if (long && !isLast && !expanded[x.id]) body.classList.add("clamp");
         ai.appendChild(body);
+        if (isCut(x)) ai.appendChild(el("p", "cutnote", "결과가 너무 길어 앞부분 6만 자까지만 저장됐어요. 뒷부분이 필요하면 ‘나머지를 이어서 보여 줘’처럼 다시 요청하세요."));
         if (long && !isLast) {
           var more = el("button", "more"); more.type = "button"; more.setAttribute("aria-expanded", String(!!expanded[x.id]));
           more.appendChild(document.createTextNode(expanded[x.id] ? "접기" : "전체 보기")); more.appendChild(ic("chevron", "ic-sm"));
@@ -1530,6 +1547,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         if (x.sec) info.push(dur(x.sec));
         if (x.info && x.info.model) info.push(modelName(x.info.model));
         L.push("---", "", "## 요청 " + (i + 1) + " · " + tags.join(" · "), "", x.prompt, "", "### 답 (" + info.join(" · ") + ")", "", x.result || x.error || "(결과 없음)", "");
+        if (isCut(x)) L.push("_(결과가 6만 자에서 잘렸어요)_", "");
       });
       var a = el("a"), d = new Date();
       a.href = URL.createObjectURL(new Blob([L.join("\n")], { type: "text/markdown;charset=utf-8" }));
@@ -1584,7 +1602,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function render() {
     renderThreads(); renderPc(); renderHint();
     var t = curThread(), folder = t ? t.folder : (cur === "" ? pendingFolder : "");
-    $("title").textContent = t ? cut(t.title, 80) : "새 대화";
+    var waiting = cur === null || (cur !== "" && cur !== cacheThread);   // 아직 이 대화를 서버에서 못 받음(로그인 직후·대화 바꾼 직후)
+    $("title").textContent = t ? cut(t.title, 80) : waiting ? "" : "새 대화";
     $("convFolder").hidden = !folder; $("convFolderName").textContent = folder;
     $("convMenu").hidden = !t;
     renderDirsBtn();
@@ -1592,8 +1611,9 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     document.title = (nNew ? "(" + nNew + ") " : doneMark ? "(완료) " : "") + APP;
     syncModeRadios();
     var none = !items.length;
-    $("empty").hidden = !none || cur === null;
-    $("list").hidden = none;
+    $("loading").hidden = !waiting;
+    $("empty").hidden = !none || waiting;
+    $("list").hidden = none || waiting;
     var last = none ? "" : items[items.length - 1].id, keep = {};
     patch($("list"), items.map(function (x) {
       var sig = [x.status, x.updatedAt, expanded[x.id] ? 1 : 0, x.id === last ? 1 : 0, x.status === "queued" && pcOnline() ? 1 : 0].join("|"), c = els[x.id];
@@ -1641,6 +1661,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         if (!auth) return;
         $("netErr").textContent = errMsg(r) + " 잠시 뒤 다시 확인할게요."; $("netErr").hidden = false;
         if (cur !== null && !items.length) render();
+        $("loading").hidden = true;   // 불러오기 실패: 도는 표시 대신 위 오류 띠만
         schedule(true); return;
       }
       $("netErr").hidden = true;
@@ -1693,7 +1714,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 동작 ── */
   function pick(t) {
     pendingFolder = ""; pendingDirs = null;
-    if (t !== cur) { setCur(t); justMoved = true; threadSig = ""; renderThreads(); var th = curThread(); $("title").textContent = th ? cut(th.title, 80) : "새 대화"; syncModeRadios(); }
+    if (t !== cur) { setCur(t); justMoved = true; threadSig = ""; render(); }   // render 가 '불러오는 중' 표시(cur ≠ cacheThread)
     closeSide(); load();
   }
   function newConv(folder) {
@@ -1784,16 +1805,22 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       load();
     });
   }
-  function openSide() { document.body.classList.add("side-open"); $("scrim").hidden = false; $("openSide").setAttribute("aria-expanded", "true"); $("newConv").focus(); }
-  function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
+  // 휴대폰 서랍: 열려 있는 동안은 대화 상자처럼(뒤 화면 inert, Tab 이 서랍 안에서 돎, Esc 로 닫힘, 닫으면 여는 버튼으로 포커스) — 2026-11-06
+  function sideModal(on) {
+    var sd = $("side");
+    if (on) sd.setAttribute("role", "dialog"); else sd.removeAttribute("role");   // aria-modal 은 안 씀: ⋯ 메뉴(#menu)가 서랍 밖에 있어 보조기기가 못 읽게 됨. 뒤 화면은 inert 로 막음
+    [document.querySelector("header.top"), $("main")].forEach(function (n) { if (n) n.inert = !!on; });
+  }
+  function openSide() { document.body.classList.add("side-open"); sideModal(true); $("scrim").hidden = false; $("openSide").setAttribute("aria-expanded", "true"); $("newConv").focus(); }
+  function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); sideModal(false); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
   function show(loggedIn) {
     $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn; $("quick").hidden = !(loggedIn && auth.user && auth.user.role === "admin"); if (loggedIn) renderChips();
     if (LOCAL && loggedIn) {   // 로컬 AI 는 관리자만(서버도 막음, 2026-10-29)
       var adm = auth.user && auth.user.role === "admin";
       $("prompt").disabled = $("model").disabled = !adm; if (!adm) $("prompt").placeholder = "로컬 AI는 관리자만 쓸 수 있어요";
     }
-    if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; load(); }
-    else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
+    if (loggedIn) { $("whoName").textContent = auth.user.name + " ·"; if (cur === null || cur !== cacheThread) { $("loading").hidden = false; $("empty").hidden = true; } load(); }
+    else { clearTimeout(pollTimer); closeMenu(true); dangerSeen = null; setAllow(false); if ($("dlg").open) $("dlg").close(); $("pc").hidden = true; threads = []; items = []; cache = {}; cacheThread = null; els = {}; $("loading").hidden = true; document.body.classList.remove("side-open"); sideModal(false); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); threadSig = ""; prevAct = null; pcSeenAt = -1; $("list").textContent = ""; $("threads").textContent = ""; }
   }
   function logout() { auth = null; try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {} loginStep(false); show(false); }
 
@@ -1835,6 +1862,15 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   $("closeSide").addEventListener("click", closeSide);
   $("scrim").addEventListener("click", closeSide);
   document.addEventListener("keydown", function (e) { if (e.key !== "Escape" || $("dlg").open) return; if (!$("menu").hidden) closeMenu(); else closeSide(); });
+  document.addEventListener("keydown", function (e) {   // 서랍 안에서 Tab 돌리기(메뉴·대화 상자가 열려 있으면 그쪽이 맡음)
+    if (e.key !== "Tab" || !document.body.classList.contains("side-open") || $("dlg").open || !$("menu").hidden) return;
+    var f = Array.prototype.filter.call($("side").querySelectorAll("button,a[href],input,select,textarea,[tabindex]:not([tabindex='-1'])"), function (n) { return !n.disabled && n.offsetParent !== null; });
+    if (!f.length) return;
+    var a = document.activeElement, first = f[0], last = f[f.length - 1], inside = $("side").contains(a);
+    if ($("menu").contains(a)) return;   // 방금 Tab 으로 메뉴가 닫힌 경우는 메뉴 쪽 처리에 맡김
+    if (e.shiftKey ? (a === first || !inside) : (a === last || !inside)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  });
+  if (window.matchMedia) { var wideMq = matchMedia("(min-width:1024px)"), onWide = function (e) { if (e.matches) closeSide(); }; if (wideMq.addEventListener) wideMq.addEventListener("change", onWide); else if (wideMq.addListener) wideMq.addListener(onWide); }   // 서랍이 열린 채 넓은 화면이 되면 inert 를 풀기
   $("dirsBtn").addEventListener("click", function () { openThreadDirs(curThread()); });
   $("convMenu").addEventListener("click", function () { var t = curThread(); if (t) toggleMenu(this, function () { return threadMenu(t); }); });
   $("composer").addEventListener("submit", function (e) { e.preventDefault(); send(); });
