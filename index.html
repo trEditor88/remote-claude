@@ -1779,6 +1779,22 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     var max = LOCAL ? 50000 : 4000;   // 로컬 AI 는 5만 자(서버도 같음)
     c.hidden = n < max * 0.75; c.textContent = n.toLocaleString() + " / " + max.toLocaleString(); c.className = "count" + (n >= max * 0.975 ? " bad" : "");
   }
+  var lastSend = null;   // 마지막으로 보낸(아직 성공을 못 본) 요청의 { sig, cid }
+  function newCid() {
+    var a = new Uint8Array(16), s = "", c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(a); else for (var i = 0; i < 16; i++) a[i] = Math.random() * 256;
+    for (var j = 0; j < 16; j++) s += c[a[j] % 62];
+    return "w" + Date.now().toString(36) + s;
+  }
+  function sendSig(b) {   // 내용 지문: 대화·글·모델·모드·위험 허용·폴더 + 사진(길이와 내용 해시)
+    var parts = [b.thread || "", b.prompt, b.model || "", b.mode, b.allow ? 1 : 0, b.folder || "", JSON.stringify(b.dirs === undefined ? null : b.dirs)];
+    (b.images || []).forEach(function (im) {   // 사진마다 길이 + 서로 다른 해시 두 개(64비트, 우연히 겹칠 일 없게)
+      var h = 2166136261, g = 5381, d = im.data;
+      for (var i = 0; i < d.length; i++) { var c = d.charCodeAt(i); h ^= c; h = Math.imul(h, 16777619); g = (Math.imul(g, 33) + c) | 0; }
+      parts.push(d.length, h >>> 0, g >>> 0);
+    });
+    return JSON.stringify(parts);
+  }
   function sendHintError(msg) { var h = $("sendHint"); h.textContent = msg; h.className = "comp-hint bad"; }
   function send() {
     var text = $("prompt").value.trim(); if ((!text && !pics.length) || sending || pics.some(function (p) { return !p.data; })) return;
@@ -1788,8 +1804,13 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     if (pics.length) body.images = pics.map(function (p) { return { name: p.name, data: p.data }; });
     var sentCur = cur;   // 보내는 동안 다른 대화로 옮기면 그 대화의 상태(새 대화 폴더·선택)를 건드리지 않게
     if (cur) body.thread = cur; else { if (pendingFolder) body.folder = pendingFolder; if (pendingDirs !== null && !LOCAL) body.dirs = pendingDirs; }
+    // 같은 요청 두 번 막기: 보낼 때마다 cid 를 만들고, 실패 뒤 내용이 그대로인 채 다시 보내면 같은 cid(서버가 이미 받았으면 그 요청을 돌려줌). 내용을 바꾸면 새 cid
+    var sig = sendSig(body);
+    body.cid = lastSend && lastSend.sig === sig ? lastSend.cid : newCid();
+    lastSend = { sig: sig, cid: body.cid };
     api(body, pics.length ? 60000 : 0).then(function (r) {
       sending = false;
+      if (r.ok) lastSend = null;
       if (!r.ok) {
         if (r.error === "bad_code" || r.error === "locked") setAllow(false);   // 다시 허용하며 코드를 새로 넣게
         sendHintError(errMsg(r)); updateSend();
@@ -1801,7 +1822,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
       if (r.thread && r.thread !== cur) { if (!cur) { modes[r.thread] = { m: mode, at: Date.now() + skew }; delete modes[""]; saveModes(); } setCur(r.thread); threadSig = ""; }
       pendingFolder = ""; pendingDirs = null; setAllow(false);
       $("prompt").value = ""; pics = []; renderPics(); grow(); updateSend(); justMoved = true;
-      toast(pcOnline() ? "보냈어요. PC가 곧 시작해요" : "보냈어요. PC가 켜지면 실행돼요");
+      toast(r.dup ? "앞에서 보낸 요청이 이미 들어가 있어서 한 번만 실행해요" : pcOnline() ? "보냈어요. PC가 곧 시작해요" : "보냈어요. PC가 켜지면 실행돼요");
       load();
     });
   }
