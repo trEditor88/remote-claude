@@ -598,7 +598,10 @@ def _run(job, fresh=False, api=None):
     if api:   # API 키로 실행(apiKeyHelper, 키는 환경변수에 안 넣음): 그날 남은 예산만큼만 쓰게 묶는다
         env = AF.api_env(env)
         cmd[cmd.index('--settings') + 1] = AF.with_key(guard_settings(), console_python())
-        cmd += ['--max-budget-usd', f'{api[1]:.2f}']
+        # --max-budget-usd 는 이어 간 대화의 누적 비용과 비교된다 → 시작 누적(믿을 수 있는 작은 값)을 더해 이번 실행이 api[1] 까지만 쓰게
+        sid0 = job.get('sessionId') if job.get('sessionId') and not fresh and not str(job['sessionId']).startswith('local-') else ''
+        bb, sb = AF.session_base(sid0) if sid0 else (0.0, 0.0)
+        cmd += ['--max-budget-usd', f'{bb + api[1]:.2f}']
     guard_seen, danger = 0, []
     if job.get('model') in ('sonnet', 'opus', 'fable', 'haiku'):
         cmd += ['--model', job['model']]
@@ -608,6 +611,8 @@ def _run(job, fresh=False, api=None):
         cmd += ['-n', '원격: ' + ' '.join(job['title'].split())[:40]]
     if job.get('sessionId') and not fresh and not str(job['sessionId']).startswith('local-'):   # 로컬 AI 로 이어 온 대화면 새 Claude 세션
         cmd += ['--resume', job['sessionId']]
+    if not api:
+        sb = 0.0
     t0 = time.time()
     p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, creationflags=NO_WINDOW)
     lines, err = queue.Queue(), []
@@ -683,10 +688,12 @@ def _run(job, fresh=False, api=None):
     except OSError:
         pass
     shutil.rmtree(job_tmp, ignore_errors=True)
+    if AF and final:   # 대화 누적 비용을 적어 둠(다음에 API 로 이어 갈 때 예산·정산 기준)
+        AF.session_note(final.get('session_id') or st['session'], final.get('total_cost_usd'))
     skipped = f'… 앞의 {len(log) - 40}단계 생략\n' if len(log) > 40 else ''
     out = {'sessionId': final.get('session_id') or st['session'], 'sec': sec, 'progress': (skipped + '\n'.join(log[-40:]))[:4000],
            'usedModel': st['model'], 'turns': final.get('num_turns') or 0, 'danger': '\n'.join(danger)[:2000],
-           'costUsd': final.get('total_cost_usd') if final else None,   # run() 이 빼고 보냄(API 로 쓴 돈 정산용, 모르면 None)
+           'costUsd': run_cost(final.get('total_cost_usd'), sb) if (final and api) else (final.get('total_cost_usd') if final else None),   # run() 이 빼고 보냄(이번 실행분, 모르면 None)
            '_limit': lim,   # run() 이 빼고 보냄(한도 판별용)
            '_sub': str((final or {}).get('subtype') or ''), '_steps': st.get('tools', 0)}   # run() 이 빼고 보냄('항상 API' 판단: 예산 초과 종류·한 일이 있었나)
     if canceled:
@@ -706,6 +713,16 @@ def _run(job, fresh=False, api=None):
     is_err = bool(final.get('is_error')) or sub not in (None, 'success')
     why = {'error_max_turns': '150턴 안에 끝내지 못했습니다. "이어서 해"로 계속하거나 요청을 나눠서 보내 주세요.'}.get(sub, str(sub))
     return dict(out, result=result[:60000] or (why if is_err else ''), error=(result[:300] or why) if is_err else '')
+
+
+def run_cost(total, base):
+    """result.total_cost_usd(대화 누적) → 이번 실행분. 누적이 시작보다 작으면(기록이 이상함) 누적 전부로(많이 잡는 쪽)."""
+    try:
+        t = float(total)
+        if t != t or t in (float('inf'), float('-inf')) or t < 0: return None
+    except (TypeError, ValueError):
+        return None
+    return round(t - base, 6) if 0 <= base <= t else t
 
 
 def run_fresh(job, api=None):
