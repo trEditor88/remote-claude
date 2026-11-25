@@ -332,6 +332,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
 .set-sec{border-top:1px solid var(--hairline);padding-top:14px;display:grid;gap:8px}
 .set-sec h3{font-size:1rem;font-weight:600;margin:0}
 .set-sec p{margin:0}
+.set-sec .set-hint{color:var(--muted);font-size:.8125rem;margin-top:4px}
 .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .switch{appearance:none;-webkit-appearance:none;width:46px;height:28px;border-radius:var(--r-pill);background:var(--border);position:relative;cursor:pointer;flex-shrink:0;transition:background-color .15s ease;margin:0}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s ease}
@@ -986,7 +987,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   /* ── 설정: 보안 코드·로그인 유지·믿는 기기·보안 기록 ── */
   var EV = { login: "로그인", login_nocode: "로그인 (보안 코드 없음)", login_new_device: "새 기기 로그인 (보안 코드 확인)", login_fail: "로그인 실패", locked: "너무 많이 틀려 잠김",
     new_device: "새 기기·장소에서 로그인 시도", code_fail: "보안 코드 틀림", code_set: "보안 코드 정함", code_changed: "보안 코드 바꿈", code_change_fail: "보안 코드 바꾸기 실패",
-    trust_reset: "믿는 기기 모두 해제", trust_del: "믿는 기기 하나 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", app_open: "Claude 앱으로 보냄", dirs_set: "작업 폴더 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
+    trust_reset: "믿는 기기 모두 해제", trust_del: "믿는 기기 하나 해제", bridge_new: "PC 연결 코드 만듦", bridge_del: "PC 연결 끊음", user_allow: "사용자 허용", user_deny: "사용자 허용 취소", allow_danger: "위험 명령 허용하고 보냄", app_open: "Claude 앱으로 보냄", dirs_set: "작업 폴더 바꿈", api_mode: "항상 API 바꿈", danger_blocked: "위험 명령 막음", danger_ran: "위험 명령 실행 (허용)" };
   var EV_BAD = { dirs_set: 1, bridge_new: 1, login_fail: 1, locked: 1, new_device: 1, code_fail: 1, code_change_fail: 1, danger_blocked: 1 };
   function formDialog(o) {   // 여러 칸 입력 대화상자: o.fields[{id,label,type,numeric}], o.submit(values) → Promise(오류 문구 또는 null)
     var d = $("dlg"), f = el("form"), box = el("div", "fields"), msg = el("p", "msg-bad"), ins = {}, nums = [];
@@ -1248,6 +1249,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
         ru.appendChild(el("p", null, "원격 Claude를 쓸 수 있는 계정을 고르세요. 각자 자기 PC를 연결해서 써요."));
         bu.type = "button"; bu.appendChild(ic("check")); bu.appendChild(document.createTextNode("고르기")); bu.onclick = openUsers;
         ru.appendChild(bu); su.appendChild(ru);
+        if (r.apiMode) apiSection(sec("항상 API (이 PC 다리)"), r.apiMode, r.pc);
       }
       var s1 = sec("보안 코드"), r1 = el("div", "set-row"), b1 = el("button", "btn-sm");
       r1.appendChild(el("p", null, r.codeSet ? "정해 둠 · " + fmtFull(r.codeAt) + " (새 기기·장소에서 로그인할 때 물어요)" : "아직 안 정했어요. 새 기기 확인이 꺼져 있어요."));
@@ -1315,6 +1317,40 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     });
   }
 
+  /* ── 항상 API(관리자만, 2026-11-25): 켜면 이 PC 다리가 구독 한도와 상관없이 처음부터 API 키로 실행. 하루 상한에 닿으면 구독으로 ── */
+  function money(v) { return "$" + (Number(v) || 0).toFixed(2); }
+  function apiNow(m, pc) {
+    var s = m.stat, now = serverNow();
+    if (pc && pc.hasBridge && !pc.legacy) return { api: false, text: "지금 연결된 PC(연결 코드로 연결)에는 적용되지 않아요 · 구독으로 실행" };
+    if (!s) return { api: false, text: "PC 다리가 아직 사용액을 알려 주지 않았어요" };
+    var held = Number(s.held) || 0, use = "오늘 API " + money(s.used) + (held ? " (+ 실행 중 " + money(held) + " 잡아 둠)" : "") + " / 하루 상한 " + money(s.cap);
+    // 다리는 바뀔 때·10분마다 보냄 → 15분 넘게 소식이 없거나 PC 가 꺼져 있으면 '지금' 이라고 하지 않음
+    if (!(s.at && now - s.at < 15 * 60000) || !(m.pcSeenAt && now - m.pcSeenAt < 3 * 60000))
+      return { api: false, text: (m.on ? "켜짐" : "꺼짐") + " · PC 다리 소식이 없어요. 마지막으로 받은 값(" + fmtFull(s.at) + "): " + use };
+    if (!m.on) return { api: false, text: "지금 구독으로 실행 · 구독 한도에 걸릴 때만 API · " + use };
+    var left = s.cap - s.used - held;
+    var why = s.broken ? "PC 의 API 사용 기록이 깨져서" : !s.key ? "PC 에 API 키가 없어서" : s.cap <= 0 ? "하루 상한이 0 이라서" : s.cap - s.used < 0.05 ? "오늘 상한에 닿아서" : s.pause ? "API 가 거절해서 " + s.pause + "분 쉬는 중이라" : "";
+    if (why) return { api: false, text: "지금 구독으로 실행 (" + why + ") · " + use };
+    if (left < 0.05) return { api: true, text: "API로 실행 중 · 남은 예산을 다 잡아 둬서 새 요청은 끝날 때까지 구독으로 · " + use };
+    return { api: true, text: "지금 API로 실행" + (held ? " (실행 중)" : "") + " · " + use };
+  }
+  function apiSection(box, m, pc) {
+    var row = el("label", "set-row"), sw = el("input", "switch"), info = el("p");
+    sw.type = "checkbox"; sw.setAttribute("role", "switch"); sw.checked = !!m.on; sw.setAttribute("aria-label", "항상 API");
+    function paint(mm) { var n = apiNow(mm, pc); row.firstChild.textContent = mm.on ? "켜짐 · 구독 한도와 상관없이 처음부터 API 키로" : "꺼짐 · 구독 한도에 걸릴 때만 API 키로"; info.textContent = n.text; info.style.color = n.api ? "var(--blue)" : ""; }
+    row.appendChild(el("span")); row.appendChild(sw); box.appendChild(row); box.appendChild(info);
+    box.appendChild(el("p", "set-hint", "관리자 PC 다리에만 적용돼요. 다음 요청부터 바뀌어요(실행 중인 요청은 그대로)."));
+    paint(m);
+    sw.onchange = function () {
+      var on = sw.checked; sw.disabled = true;
+      api({ action: "rcApiSet", on: on }).then(function (k) {
+        sw.disabled = false;
+        if (!k.ok) { sw.checked = !on; toast(errMsg(k)); return; }
+        paint(k.apiMode); toast(on ? "항상 API를 켰어요" : "항상 API를 껐어요");
+      });
+    };
+  }
+
   /* ── 요청 하나 그리기 ── */
   function curThread() { for (var i = 0; i < threads.length; i++) if (threads[i].thread === cur) return threads[i]; return null; }
   function stepEl(s, now) {
@@ -1346,6 +1382,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     else if (x.sec) info.push(dur(x.sec));
     if (x.info && x.info.turns) info.push(x.info.turns + "턴");
     if (x.info && x.info.model) info.push(modelName(x.info.model));
+    if (x.info && x.info.via) info.push(x.info.via === "api" ? "API" + (x.info.usd ? " $" + x.info.usd.toFixed(2) : "") : "구독");
     if (info.length) head.appendChild(el("span", null, info.join(" · ")));
     head.appendChild(el("span", "grow"));
     function act(icon, label, fn) { var b = el("button", "btn-sm"); b.type = "button"; b.appendChild(ic(icon)); b.appendChild(document.createTextNode(label)); b.onclick = function () { fn(b); }; head.appendChild(b); }

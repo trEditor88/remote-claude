@@ -10,13 +10,13 @@
 - PC 는 서버로 나가는 요청만 한다(포트를 열지 않음). 인증은 study-helper/sync.json 의 key(워커 키).
 - 작업 폴더는 D:\\AI_HEO, 한 요청당 시간 제한 없음(사이트 '중지'로 끔)·최대 150턴. 같은 대화(thread)의 요청은 서버가 준 sessionId 로 이어 간다.
 - 실행 중에는 몇 초마다 작업 기록(읽은 파일·실행한 명령)을 서버에 보내고, 사이트에서 '중지'를 누르면 Claude 를 끈다.
-- 서버 주소는 sync.json 의 url(Cloudflare Worker).
+- 서버 주소는 sync.json 의 url(Cloudflare Worker). 기본 주소면 서울 통로(heoworks.pages.dev/api)로 보낸다(api_read).
 - 요청에 사진이 붙어 있으면 remote-claude-inbox 폴더에 저장하고, 그 경로를 요청 앞에 적어 Claude 가 Read 로 보게 한다.
 - 작업 폴더 제한(v2, 2026-10-11): 사이트 설정 '작업 폴더'에서 고른 폴더(job.dirs)에서만 Claude 를 실행한다.
   고른 폴더 첫째를 실행 위치로, 나머지는 --add-dir 로 주고, 보호 장치(rc_guard.py)에 RC_DIRS 로 넘겨 밖을 막는다.
   ['*'] = 작업 폴더 전체, 비어 있으면 사진 받는 폴더(remote-claude-inbox)에서 대화만. 서버는 v2 가 아닌 다리에 요청을 주지 않는다.
 """
-import base64, hashlib, glob, json, os, queue, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request
+import base64, hashlib, glob, io, json, os, queue, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request
 
 # 두 가지로 쓴다
 #  - 관리자 PC(D:\AI_HEO\tools): study-helper/sync.json 의 워커 키로 관리자 계정 요청을 받고, 작업 폴더는 D:\AI_HEO
@@ -30,6 +30,61 @@ try:   # 구독 사용량 한도에 걸리면 API 키로 다시 실행(이 PC �
 except Exception:
     AF = None
 DEFAULT_API ='https://exam-api.dawn-sea-4052.workers.dev'
+# 서울 연결 통로(2026-11-06): workers.dev 는 한국에서 LA 로 가 요청마다 약 1초·시간 초과가 잦아, 주소가 기본값이면
+# heoworks.pages.dev/api(Pages Function → 서비스 바인딩 → 같은 exam-api, 약 0.08초)로 보낸다.
+# 통로가 고장 나 '서버에 닿지 않은 게 확실한' 실패만 workers.dev 로 한 번 다시 보내고 10분 동안 workers.dev 만 쓴다.
+FAST_API = 'https://heoworks.pages.dev/api'
+FAST_OFF_S = 600
+_fast_off = [0.0]
+
+
+def api_read(base, build, timeout):
+    """build(주소) → Request 를 보내고 응답 본문(bytes)을 돌려준다. base 가 기본 주소면 서울 통로 먼저.
+    다시 보내는 경우(같은 요청이 두 번 처리되지 않는 것만):
+      - URLError(연결·핸드셰이크·보내기 실패. 응답 읽기 시간 초과·끊김은 URLError 가 아니라 그대로 올림)
+      - 404·405 이고 본문이 JSON 이 아님(통로 함수가 없어 정적 페이지가 받음)
+      - 502 이고 본문이 정확히 _pass.js 의 {"ok":false,"error":"no_binding"}(통로에 바인딩 없음)
+      - 200 이고 본문이 HTML(함수 없이 배포돼 index.html 이 옴)
+    본문을 다 못 읽은 오류는 다시 보내지 않는다. exam-api 자체는 404·405·502 를 내지 않고 늘 JSON 객체를 돌려준다.
+    다시 올리는 HTTPError 는 본문을 되돌려 놓아 호출자가 e.read() 로 읽을 수 있다. 10분은 PC 시계와 무관한 monotonic."""
+    if base.rstrip('/') != DEFAULT_API or time.monotonic() < _fast_off[0]:
+        with urllib.request.urlopen(build(base), timeout=timeout) as r:
+            return r.read()
+    def is_json(b):
+        try:
+            json.loads(b.decode('utf-8-sig'))
+            return True
+        except Exception:
+            return False
+    try:
+        with urllib.request.urlopen(build(FAST_API), timeout=timeout) as r:
+            raw, status = r.read(), r.status
+        if status != 200 or not raw.lstrip()[:1] == b'<':
+            return raw
+        why = '응답이 HTML'
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read()
+        except Exception:   # 본문을 다 못 읽음 → 서버에 닿았는지 모르니 다시 보내지 않음
+            raise e
+        e.fp = e.file = io.BytesIO(body)   # 호출자가 e.read() 로 본문을 볼 수 있게 되돌림
+        for k in ('read', 'readline', 'readlines'):   # 파일 감싸개가 처음 읽을 때 붙여 둔 옛 메서드 지우기
+            e.__dict__.pop(k, None)
+        nobind = False
+        if e.code == 502:
+            try: nobind = json.loads(body.decode('utf-8-sig')) == {'ok': False, 'error': 'no_binding'}
+            except Exception: pass
+        if not ((e.code in (404, 405) and not is_json(body)) or nobind):
+            raise
+        why = f'HTTP {e.code}'
+    except urllib.error.URLError as e:
+        why = str(e.reason)[:120]
+    with urllib.request.urlopen(build(DEFAULT_API), timeout=timeout) as r:
+        raw = r.read()
+    # workers.dev 는 됐을 때만 10분 멈춤(인터넷이 통째로 끊겼던 거면 다음 요청부터 바로 통로를 다시 씀)
+    _fast_off[0] = time.monotonic() + FAST_OFF_S
+    print(time.strftime('%Y-%m-%d %H:%M:%S'), '서울 통로 실패 → workers.dev 로 10분:', why, flush=True)
+    return raw
 CONF = os.path.join(HERE, 'remote_claude.json')
 LEGACY = os.path.join(os.path.dirname(HERE), 'study-helper', 'sync.json')
 
@@ -176,10 +231,9 @@ TOOL_KO = {'Read': '읽기', 'Write': '새 파일', 'Edit': '수정', 'MultiEdit
 
 
 def post(body, timeout=30):
-    req = urllib.request.Request(API, data=json.dumps(body).encode('utf-8'),
-                                 headers={'Content-Type': 'application/json', 'User-Agent': 'remote-claude/2'}, method='POST')
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode('utf-8'))
+    data = json.dumps(body).encode('utf-8')
+    build = lambda url: urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'remote-claude/2'}, method='POST')
+    return json.loads(api_read(API, build, timeout).decode('utf-8'))
 
 
 def claude_exe():
@@ -347,30 +401,140 @@ def guard_works():
         return f'rc_guard.py 를 실행하지 못했어요({type(e).__name__})'
 
 
+def api_first_ok(job):
+    """'항상 API'(2026-11-25): 서버가 job.api=True 를 준 요청을 처음부터 API 키로 돌려도 되는가.
+    관리자 PC 다리(워커 키, sync.json)만. 잠금 다리·연결 코드 다리(다른 계정)는 서버가 켜 줘도 안 씀."""
+    return job.get('api') is True and bool(AF) and LEGACY_MODE and not LOCKED
+
+
 def run(job, fresh=False):
-    """요청 실행. 구독 사용량 한도에 걸렸으면 저장된 API 키로 한 번 더(하루 상한 안에서)."""
-    res = _run(job, fresh)
+    """요청 실행. '항상 API' 가 켜져 있으면 처음부터 API 키로(하루 상한 안에서), 아니면 구독으로 돌리고 한도에 걸릴 때만 API.
+    결과에 via('api'|'sub')·apiUsd 를 붙여 사이트·기록에 어느 쪽으로 돌았는지 남긴다."""
+    pre = ''
+    if api_first_ok(job):
+        res, pre = run_api_first(job, fresh)
+        if res is not None:
+            return res
+    res = run_sub(job, fresh)
+    res.setdefault('via', 'sub')
+    if pre:
+        res['progress'] = (pre + '\n' + (res.get('progress') or ''))[:4000]
+    return res
+
+
+def run_api_first(job, fresh):
+    """처음부터 API 키로 실행 → (결과, '') 또는 (None, 구독으로 돌린 이유 한 줄).
+    구독으로 돌리는 경우: 예약 실패(상한·키 없음·쉬는 중), API 가 바로 거절(한 턴도 못 함), 실행 중 상한에 닿아 끝남."""
+    jid = ' '.join(str(job.get('id') or '').split())[:40]
+    now = lambda: time.strftime('%Y-%m-%d %H:%M:%S')
+    who = '원격(항상 API) ' + str(job.get('id') or '')
+    hid, key, left = AF.reserve(who, AF.PER_RUN_CAP)   # 한 요청이 그날 몫을 다 잡지 않게(동시 실행·중지 때 장부, 교차 검토)
+    if not hid:
+        why = ' '.join(str(left).split())[:200]
+        print(now(), '항상 API → API 못 씀, 구독으로', jid, ':', why, flush=True)
+        return None, f'API 를 쓸 수 없어 구독으로 실행했어요({why})'
+    print(now(), '항상 API → API 키로 실행', jid, f'(예산 ${left:.2f})', flush=True)
+    try:
+        res = _run(job, fresh, api=(key, left))
+    except Exception as e:
+        AF.settle(hid, None, who)
+        print(now(), '항상 API 실행 오류', jid, f': {type(e).__name__} · 잡아 둔 예산 전부로 기록', flush=True)
+        raise
+    cost = res.pop('costUsd', None)
+    res.pop('_limit', None)
+    sub, steps = res.pop('_sub', ''), res.pop('_steps', 0)
+    err = res.get('error') or ''
+    worked = bool(steps) or (isinstance(cost, (int, float)) and cost > 0)   # 도구를 한 번이라도 썼거나 돈이 나갔으면 일한 것(결과 줄이 없어도). API 오류 글은 셈에 안 넣음
+    if cost is None and err and not worked and AF.is_api_limit(err):
+        cost = 0   # API 가 바로 거절(비용 없음)
+    AF.settle(hid, cost, who)
+    usd = f'${float(cost):.2f}' if isinstance(cost, (int, float)) else '알 수 없음(예산 전부로 기록)'
+    b = AF.brief()
+    print(now(), '항상 API 끝', jid, ('오류: ' + ' '.join(err.split())[:120]) if err else ('중지됨' if res.get('canceled') else '완료'),
+          '· 쓴 돈', usd, f"· 오늘 ${b['used']:.2f}/${b['cap']:g}", flush=True)
+    if err and not res.get('canceled'):
+        reason = ''
+        if sub == 'error_max_budget_usd':   # 이 요청에 잡아 둔 예산(하루 상한 안)을 다 씀 → 구독으로 이어서
+            reason = 'API 예산에 닿아서'
+        elif worked:
+            reason = ''   # 일한 뒤의 다른 오류는 다시 돌리지 않음(일·돈 두 번 안 하게, 교차 검토 1)
+            if AF.is_api_limit(err): AF.pause(err)   # 다음 요청은 바로 구독으로
+        elif AF.is_api_limit(err):   # API 자체 한도·인증 오류 → 30분 쉬고 하루 한 번 관리자 알림
+            AF.pause(err)
+            if AF.alert_once():
+                try: post({'action': 'pcAlert', 'key': KEY, 'kind': 'api', 'text': ('원격 Claude 를 API 로 돌리려 했지만 API 가 거절했어요. 30분 동안 구독으로 돌려요: ' + err)[:300]}, timeout=15)
+                except Exception: pass
+            reason = 'API 가 거절해서'
+        else:
+            reason = 'API 실행이 시작하자마자 실패해서'
+        if reason:
+            print(now(), '항상 API →', reason, '구독으로 다시', jid, flush=True)
+            note = (f'[API 로 실행하다 {reason} 같은 요청을 구독으로 다시 실행합니다. 앞선 시도가 일부 작업을 했을 수 있으니 '
+                    '파일 상태를 확인하고 이미 된 일은 되풀이하지 마세요.]\n')
+            res2 = run_sub(dict(job, prompt=note + job['prompt']), fresh, allow_api=False)   # 다시 API 로 가지 않게(세 번 일하지 않음)
+            res2.setdefault('via', 'sub')
+            first = (res.get('danger') or '').strip()
+            if first:
+                res2['danger'] = (first + '\n' + (res2.get('danger') or '')).strip()[:2000]
+            res2['progress'] = (f'API 로 시작했지만 {reason} 구독으로 다시 실행했어요(API {usd}: {" ".join(err.split())[:80]})\n'
+                                + (res2.get('progress') or ''))[:4000]
+            return res2, ''
+    res['via'] = 'api'
+    if isinstance(cost, (int, float)):
+        res['apiUsd'] = round(float(cost), 4)
+    res['progress'] = (f"API 키로 실행했어요({usd} · 오늘 ${b['used']:.2f}/${b['cap']:g})\n" + (res.get('progress') or ''))[:4000]
+    return res, ''
+
+
+def run_sub(job, fresh=False, allow_api=True):
+    """구독으로 실행. 구독 사용량 한도에 걸렸으면 저장된 API 키로 한 번 더(하루 상한 안에서)."""
+    jid =' '.join(str(job.get('id') or '').split())[:40]   # 로그 한 줄(줄바꿈으로 가짜 줄을 못 만들게)
+    try:
+        res = _run(job, fresh)
+    except Exception as e:
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), 'API 대체 판단 못 함', jid, f': 실행 오류({type(e).__name__})', flush=True)
+        raise
     res.pop('costUsd', None)
-    # 오류로 끝났고 그 메시지가 한도 안내일 때만(정상 답변 본문에 '사용량 한도'가 있어도 다시 돌지 않게)
-    if res.get('canceled') or not AF or not res.get('error') or not AF.is_limit(res['error']):
+    lim = res.pop('_limit', None)
+    res.pop('_sub', None); res.pop('_steps', None)
+    # 오류로 끝났고 한도 표시·안내가 있을 때만(정상 답변 본문에 '사용량 한도'가 있어도 다시 돌지 않게). 판별 결과는 늘 한 줄 남긴다(2026-11-08)
+    if res.get('canceled') or not res.get('error'):
+        return res
+    now = lambda: time.strftime('%Y-%m-%d %H:%M:%S')
+    if not AF:
+        print(now(), 'API 대체 건너뜀', jid, ': api_fallback 을 못 읽음', flush=True)
+        return res
+    if not LEGACY_MODE or not allow_api:   # 연결 코드 다리(다른 계정)는 이 PC 의 API 키를 쓰지 않음 / API 시도 뒤 구독 재실행은 다시 API 로 안 감
+        print(now(), 'API 대체 건너뜀', jid, ':', '연결 코드 다리' if not LEGACY_MODE else 'API 시도 뒤 구독 재실행', flush=True)
+        return res
+    try:
+        hit, why = AF.classify(res['error'], lim)
+    except Exception as e:
+        hit, why = False, f'판별 오류({type(e).__name__})'
+    if not hit:
+        print(now(), 'API 대체 건너뜀', jid, ':', ' '.join(str(why).split())[:200], flush=True)
         return res
     who = '원격 ' + str(job.get('id') or '')
     hid, key, left = AF.reserve(who)
     if not hid:
-        print(time.strftime('%Y-%m-%d %H:%M:%S'), '사용량 한도 · API 대체 안 됨:', left, flush=True)
+        print(now(), '사용량 한도 · API 대체 안 됨', jid, f'({why}):', ' '.join(str(left).split())[:200], flush=True)
         return dict(res, error=(res.get('error') or '')[:200] + f' (API 대체 안 됨: {left})')
-    print(time.strftime('%Y-%m-%d %H:%M:%S'), '사용량 한도 → API 키로 다시 실행', job.get('id'), f'(예산 ${left:.2f})', flush=True)
+    print(now(), '사용량 한도 → API 키로 다시 실행', jid, f'({why}, 예산 ${left:.2f})', flush=True)
     note = ('[구독 사용량 한도 때문에 같은 요청을 API 로 다시 실행합니다. 앞선 시도가 일부 작업을 했을 수 있으니 '
             '파일 상태를 확인하고 이미 된 일은 되풀이하지 마세요.]\n')
     try:
         res2 = _run(dict(job, prompt=note + job['prompt']), fresh, api=(key, left))
-    except Exception:
+    except Exception as e:
         AF.settle(hid, None, who)   # 비용을 모르면 잡아 둔 돈을 쓴 것으로
+        print(now(), 'API 대체 실패', jid, f': 실행 오류({type(e).__name__}) · 잡아 둔 예산 전부로 기록', flush=True)
         raise
     cost = res2.pop('costUsd', None)
+    res2.pop('_limit', None); res2.pop('_sub', None); res2.pop('_steps', None)
     if cost is None and res2.get('error') and AF.is_api_limit(res2['error']):
         cost = 0   # API 가 바로 거절(비용 없음) → 잡아 둔 돈을 다 쓴 것으로 치지 않음
     AF.settle(hid, cost, who)
+    print(now(), 'API 대체 끝', jid, '오류: ' + ' '.join(str(res2.get('error')).split())[:120] if res2.get('error') else '완료',
+          '· 쓴 돈', '알 수 없음(예산 전부로 기록)' if not isinstance(cost, (int, float)) else f'${float(cost):.2f}', flush=True)
     try:   # 서버에 건수 알림(하루 5건 넘으면 관리자 알림). 실패해도 결과는 그대로
         post({'action': 'apiFallbackLog', 'key': KEY, 'who': who[:40]}, timeout=15)
     except Exception:
@@ -388,6 +552,9 @@ def run(job, fresh=False):
             res2['error'] = ('%s (%s)' % ('AI API 사용 한도에 걸려 지금은 처리하지 못했어요. 30분쯤 뒤 다시 시도해 주세요(관리자에게 알렸어요).', res2['error']))[:300]
         else:
             res2['error'] = ('구독 한도 → API 재실행 실패: ' + res2['error'])[:300]
+    res2['via'] = 'api'
+    if isinstance(cost, (int, float)):
+        res2['apiUsd'] = round(float(cost), 4)
     return res2
 
 
@@ -452,6 +619,7 @@ def _run(job, fresh=False, api=None):
     threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True).start()
 
     log, final, st = [], {}, {'model': '', 'session': ''}
+    lim = {'t0': t0}   # 구독 한도 판별용 구조 표시(api_fallback.classify)
     sent, last_sent, last_check, canceled, timed_out = '', 0.0, 0.0, False, False
     while True:
         try:
@@ -466,12 +634,15 @@ def _run(job, fresh=False, api=None):
             except Exception:
                 j = {}
             st['session'] = j.get('session_id') or st['session']
+            if AF:
+                AF.stream_mark(j, lim)
             if j.get('type') == 'system' and j.get('subtype') == 'init':
                 st['model'] = j.get('model') or ''
             elif j.get('type') == 'assistant':
                 for b in (j.get('message') or {}).get('content') or []:
                     if b.get('type') == 'tool_use':
                         log.append(tool_line(b.get('name') or '', b.get('input')))
+                        st['tools'] = st.get('tools', 0) + 1
                     elif b.get('type') == 'text' and (b.get('text') or '').strip():
                         log.append('생각 · ' + ' '.join(b['text'].split())[:110])
             elif j.get('type') == 'result':
@@ -515,7 +686,9 @@ def _run(job, fresh=False, api=None):
     skipped = f'… 앞의 {len(log) - 40}단계 생략\n' if len(log) > 40 else ''
     out = {'sessionId': final.get('session_id') or st['session'], 'sec': sec, 'progress': (skipped + '\n'.join(log[-40:]))[:4000],
            'usedModel': st['model'], 'turns': final.get('num_turns') or 0, 'danger': '\n'.join(danger)[:2000],
-           'costUsd': final.get('total_cost_usd') if final else None}   # run() 이 빼고 보냄(API 로 쓴 돈 정산용, 모르면 None)
+           'costUsd': final.get('total_cost_usd') if final else None,   # run() 이 빼고 보냄(API 로 쓴 돈 정산용, 모르면 None)
+           '_limit': lim,   # run() 이 빼고 보냄(한도 판별용)
+           '_sub': str((final or {}).get('subtype') or ''), '_steps': st.get('tools', 0)}   # run() 이 빼고 보냄('항상 API' 판단: 예산 초과 종류·한 일이 있었나)
     if canceled:
         return dict(out, result='', error='', canceled=True)
     if timed_out:
@@ -891,6 +1064,7 @@ def flush_pending():
 FOLDERS_SENT = [None, 0.0]
 KEY_BACKOFF = [0.0]   # 서버가 연결 코드를 거절(bad_key)하면 10분 동안 확인을 쉰다(취소된 코드로 15초마다 두드리지 않게)
 LLM_SENT, LLM_CHK = [None, 0.0], [None, 0.0]   # 로컬 LLM 상태: 마지막으로 보낸 값·시각 / 마지막 확인 값·시각
+APISTAT_SENT = [None, 0.0]   # API 사용 요약(관리자 PC 다리만, 사이트 '항상 API' 옆 표시): 마지막으로 보낸 값·시각
 BOOT = False   # 계속 실행할 때만 True: 첫 확인에서 서버가 '실행 중'으로 남은 옛 요청(다리가 꺼지며 끊긴 것)을 정리한다
 
 
@@ -909,11 +1083,17 @@ def take():
         LLM_CHK[0], LLM_CHK[1] = local_status(), now
     if BOOT or LLM_CHK[0] != LLM_SENT[0] or now - LLM_SENT[1] > 600:
         body['llm'] = LLM_CHK[0]
+    if AF and LEGACY_MODE and not LOCKED:   # 바뀌었을 때·10분마다(오늘 쓴 돈·상한·키 있음·쉬는 중)
+        ast = AF.brief()
+        if BOOT or ast != APISTAT_SENT[0] or now - APISTAT_SENT[1] > 600:
+            body['apiStat'] = ast
     r = post(body)
     if 'folders' in body:
         FOLDERS_SENT[:] = [folders, time.time()]
     if 'llm' in body:
         LLM_SENT[:] = [body['llm'], now]
+    if 'apiStat' in body and r.get('ok'):
+        APISTAT_SENT[:] = [body['apiStat'], now]
     BOOT = False
     if r.get('error') == 'bad_key':   # 연결 코드가 취소됐거나(허용 끔·새 코드 발급) 워커 키가 바뀜 → 기록에 남기고 10분 쉼
         KEY_BACKOFF[0] = time.time() + 600
