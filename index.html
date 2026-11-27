@@ -78,6 +78,11 @@ button{cursor:pointer}
 .pc.off{color:var(--red)}
 .who{display:flex;align-items:center;gap:2px;font-size:.875rem;color:var(--muted);white-space:nowrap}
 @media (max-width:640px){.who-name,.logout-label{display:none}}
+.appswitch{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:1px solid var(--hairline);border-radius:var(--r-pill);font-size:.8125rem;font-weight:600;color:var(--ink);text-decoration:none;white-space:nowrap;flex-shrink:0}
+.appswitch:hover{background:var(--parchment)}
+.appswitch[hidden]{display:none}
+@media (max-width:420px){.appswitch{padding:0 10px}}
+@media (max-width:360px){#switchText{display:none}.appswitch{padding:0 8px}}
 
 /* 로그인 */
 .login{min-height:calc(100vh - var(--top));min-height:calc(100dvh - var(--top));display:grid;place-items:center;padding:32px 16px}
@@ -418,6 +423,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     </span>
     <span class="pc" id="pc" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-monitor"/></svg><span id="pcText">PC 확인 중</span></span>
     <span class="grow"></span>
+    <a class="appswitch" id="switchApp" href="local.html" title="로컬 AI로 가기" aria-label="로컬 AI로 가기" hidden><svg class="ic ic-sm" aria-hidden="true"><use href="#i-monitor"/></svg><span id="switchText">로컬 AI</span></a>
     <button class="icon-btn" id="openSettings" type="button" aria-label="설정" title="설정" hidden><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></button>
     <span class="who" id="who" hidden><span class="who-name" id="whoName"></span><button class="link" id="logout" type="button" aria-label="나가기"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-logout"/></svg><span class="logout-label">나가기</span></button></span>
   </div>
@@ -1873,6 +1879,8 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
   function closeSide() { if (!document.body.classList.contains("side-open")) return; closeMenu(true); document.body.classList.remove("side-open"); sideModal(false); $("scrim").hidden = true; $("openSide").setAttribute("aria-expanded", "false"); $("openSide").focus(); }
   function show(loggedIn) {
     $("login").hidden = loggedIn; $("app").hidden = !loggedIn; $("who").hidden = !loggedIn; $("openSide").hidden = !loggedIn; $("openSettings").hidden = !loggedIn; $("quick").hidden = !(loggedIn && auth.user && auth.user.role === "admin"); if (loggedIn) renderChips();
+    // 원격 Claude ↔ 로컬 AI 오가기: 로컬 AI 는 관리자만 쓰므로 원격 Claude 쪽 버튼은 관리자에게만, 로컬 AI 쪽 '원격 Claude로' 는 로그인한 누구나
+    $("switchApp").hidden = !(loggedIn && (LOCAL || (auth.user && auth.user.role === "admin")));
     if (LOCAL && loggedIn) {   // 로컬 AI 는 관리자만(서버도 막음, 2026-10-29)
       var adm = auth.user && auth.user.role === "admin";
       $("prompt").disabled = $("model").disabled = !adm; if (!adm) $("prompt").placeholder = "로컬 AI는 관리자만 쓸 수 있어요";
@@ -1966,6 +1974,7 @@ label.lbl{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
     document.title = APP;
     Array.prototype.forEach.call(document.querySelectorAll('link[rel="manifest"]'), function (l) { l.href = "local.webmanifest"; });   // 홈 화면에 추가하면 local.html 이 열리게
     Array.prototype.forEach.call(document.querySelectorAll(".brand-text, #loginTitle"), function (n) { n.textContent = APP; });
+    $("switchApp").href = "./"; $("switchText").textContent = "원격 Claude"; $("switchApp").title = "원격 Claude로 가기"; $("switchApp").setAttribute("aria-label", "원격 Claude로 가기");
     $("loginTitle").nextElementSibling.textContent = "휴대폰에서 물어보면 PC의 로컬 AI가 답해 줍니다. 원격 Claude와 같은 계정으로 들어가요.";
     $("model").textContent = "";
     [["local-fast", "빠름 · Qwen 35B"], ["local-next", "깊게 · Flash-Next 125B"], ["local-deepseek", "딥시크 · DeepSeek V4 284B"], ["local-free", "검열 해제 · Flash-Next 125B"]].forEach(function (o) { var op = el("option", null, o[1]); op.value = o[0]; $("model").appendChild(op); });
